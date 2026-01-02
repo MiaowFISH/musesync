@@ -1,6 +1,7 @@
 // backend/src/services/music/MusicService.ts
 // NetEase Cloud Music API proxy service
 
+import NeteaseCloudMusicApi from '@neteasecloudmusicapienhanced/api';
 import type {
   SearchQuery,
   SearchResult,
@@ -56,16 +57,35 @@ export class MusicService {
         };
       }
 
-      // TODO: Call NetEase API
-      // For now, return mock data
-      const mockResult: SearchResult = {
-        songs: [],
-        totalCount: 0,
+      // Call NetEase API
+      const response = await NeteaseCloudMusicApi.search({
+        keywords: query.keyword,
+        limit: query.limit || 20,
+        offset: query.offset || 0,
+        type: 1, // 1 = songs
+      });
+
+      if (response.body.code !== 200 || !response.body.result) {
+        throw new Error('NetEase API returned error');
+      }
+
+      const songs: SearchSong[] = (response.body.result.songs || []).map((song: any) => ({
+        trackId: String(song.id),
+        title: song.name,
+        artist: song.artists?.map((a: any) => a.name).join(', ') || 'Unknown',
+        album: song.album?.name || '',
+        albumArt: song.album?.picUrl || '',
+        duration: Math.floor((song.duration || 0) / 1000),
+      }));
+
+      const result: SearchResult = {
+        songs,
+        totalCount: response.body.result.songCount || 0,
       };
 
       // Cache for 24 hours
       const cacheExpiry = Date.now() + 86400000;
-      this.setCache(cacheKey, mockResult, cacheExpiry);
+      this.setCache(cacheKey, result, cacheExpiry);
 
       return {
         success: true,
@@ -114,14 +134,39 @@ export class MusicService {
         };
       }
 
-      // TODO: Call NetEase API
-      // For now, return error
+      // Call NetEase API
+      const response = await NeteaseCloudMusicApi.song_detail({ ids: trackId });
+
+      if (response.body.code !== 200 || !response.body.songs || response.body.songs.length === 0) {
+        return {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.SONG_NOT_FOUND,
+            message: 'Song not found',
+          },
+        };
+      }
+
+      const song = response.body.songs[0];
+      const detail: SongDetail = {
+        trackId: String(song.id),
+        title: song.name,
+        artist: song.ar?.map((a: any) => a.name).join(', ') || 'Unknown',
+        album: song.al?.name || '',
+        albumArt: song.al?.picUrl || '',
+        duration: Math.floor((song.dt || 0) / 1000),
+        lyrics: '', // TODO: Fetch lyrics separately if needed
+      };
+
+      // Cache for 24 hours
+      const cacheExpiry = Date.now() + 86400000;
+      this.setCache(cacheKey, detail, cacheExpiry);
+
       return {
-        success: false,
-        error: {
-          code: API_ERROR_CODES.SONG_NOT_FOUND,
-          message: 'Song not found',
-        },
+        success: true,
+        data: detail,
+        cached: false,
+        cacheExpiry,
       };
     } catch (error) {
       console.error('[MusicService] Get song detail error:', error);
@@ -175,14 +220,56 @@ export class MusicService {
         }
       }
 
-      // TODO: Call NetEase API
-      // For now, return error
+      // Call NetEase API
+      // Quality mapping: standard=128000, high=192000, exhigh=320000, lossless=999000
+      const bitrateMap: Record<string, number> = {
+        standard: 128000,
+        high: 192000,
+        exhigh: 320000,
+        lossless: 999000,
+      };
+      const br = bitrateMap[quality] || bitrateMap.exhigh;
+
+      const response = await NeteaseCloudMusicApi.song_url({ id: trackId, br });
+
+      if (response.body.code !== 200 || !response.body.data || response.body.data.length === 0) {
+        return {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.AUDIO_NOT_AVAILABLE,
+            message: 'Audio not available',
+          },
+        };
+      }
+
+      const audioData = response.body.data[0];
+      if (!audioData.url) {
+        return {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.AUDIO_NOT_AVAILABLE,
+            message: 'Audio URL not available (may require VIP)',
+          },
+        };
+      }
+
+      const result: AudioUrlResult = {
+        trackId,
+        audioUrl: audioData.url,
+        quality,
+        bitrate: audioData.br || br,
+        audioUrlExpiry: Date.now() + 1200000, // 20 minutes
+      };
+
+      // Cache for 20 minutes
+      const cacheExpiry = Date.now() + 1200000;
+      this.setCache(`audio:${trackId}:${quality}`, result, cacheExpiry);
+
       return {
-        success: false,
-        error: {
-          code: API_ERROR_CODES.AUDIO_NOT_AVAILABLE,
-          message: 'Audio not available',
-        },
+        success: true,
+        data: result,
+        cached: false,
+        cacheExpiry,
       };
     } catch (error) {
       console.error('[MusicService] Get audio URL error:', error);

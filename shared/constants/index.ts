@@ -313,6 +313,26 @@ export const ERROR_CODES = {
 } as const;
 
 /**
+ * API Error Codes (NetEase Music API)
+ */
+export const API_ERROR_CODES = {
+  // Request validation
+  INVALID_KEYWORD: 'INVALID_KEYWORD',
+  INVALID_TRACK_ID: 'INVALID_TRACK_ID',
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  
+  // NetEase API errors
+  NETEASE_API_ERROR: 'NETEASE_API_ERROR',
+  SONG_NOT_FOUND: 'SONG_NOT_FOUND',
+  AUDIO_NOT_AVAILABLE: 'AUDIO_NOT_AVAILABLE',
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  
+  // Cache/Network errors
+  CACHE_ERROR: 'CACHE_ERROR',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+} as const;
+
+/**
  * Type exports for compile-time safety
  */
 export type SocketEventName = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];

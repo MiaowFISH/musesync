@@ -6,6 +6,9 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 
+// Import routes
+import musicRoutes from './routes/music';
+
 // Import types
 import type { SocketEvents } from '@shared/types/socket-events';
 
@@ -67,6 +70,9 @@ io.on('connection', (socket) => {
 // ============================================================================
 // REST API Routes
 // ============================================================================
+
+// Mount music API routes
+app.use('/api/music', musicRoutes);
 
 /**
  * GET /api/health

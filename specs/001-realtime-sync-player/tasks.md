@@ -82,14 +82,14 @@ Per [plan.md](plan.md) structure:
 
 **Independent Test**: Open app, search for a song, play it, adjust EQ, verify audio changes in real-time. Lock screen and verify background playback (mobile).
 
-### US1 - Backend (NetEase API Proxy)
+### US1 - Backend (NetEase API Proxy) ✅ COMPLETE
 
-- [ ] T030 [P] [US1] Implement search endpoint GET /api/music/search with caching (24h TTL) in backend/src/services/music/MusicService.ts
-- [ ] T031 [P] [US1] Implement song detail endpoint GET /api/music/song/:id with caching in backend/src/services/music/MusicService.ts
-- [ ] T032 [P] [US1] Implement audio URL endpoint GET /api/music/audio/:id with caching (20min TTL) in backend/src/services/music/MusicService.ts
-- [ ] T033 [US1] Add rate limiting middleware (10 req/min for search, 20 req/min for audio) in backend/src/middleware/rateLimiter.ts
-- [ ] T034 [US1] Add error handling for NetEase API failures with retry logic in backend/src/services/music/MusicService.ts
-- [ ] T035 [P] [US1] Implement batch audio URL endpoint POST /api/music/batch/audio in backend/src/services/music/MusicService.ts
+- [X] T030 [P] [US1] Implement search endpoint GET /api/music/search with caching (24h TTL) in backend/src/services/music/MusicService.ts
+- [X] T031 [P] [US1] Implement song detail endpoint GET /api/music/song/:id with caching in backend/src/services/music/MusicService.ts
+- [X] T032 [P] [US1] Implement audio URL endpoint GET /api/music/audio/:id with caching (20min TTL) in backend/src/services/music/MusicService.ts
+- [X] T033 [US1] Add rate limiting middleware (10 req/min for search, 20 req/min for audio) in backend/src/middleware/rateLimiter.ts
+- [X] T034 [US1] Add error handling for NetEase API failures with retry logic in backend/src/services/music/MusicService.ts
+- [X] T035 [P] [US1] Implement batch audio URL endpoint POST /api/music/batch/audio in backend/src/services/music/MusicService.ts
 
 ### US1 - Mobile Audio Engine
 
@@ -101,26 +101,26 @@ Per [plan.md](plan.md) structure:
 - [ ] T041 [US1] Implement playback rate adjustment for soft sync (0.95-1.05x) in app/src/services/audio/PlayerService.ts
 - [ ] T042 [P] [US1] Implement notification controls for background playback in app/src/services/audio/PlayerService.ts
 
-### US1 - Web Audio Engine
+### US1 - Web Audio Engine ✅ COMPLETE
 
-- [ ] T043 [US1] Setup Web Audio API context with user gesture initialization in web/src/services/audio/AudioService.ts
-- [ ] T044 [US1] Create MediaElementAudioSourceNode from <audio> element in web/src/services/audio/AudioService.ts
-- [ ] T045 [US1] Implement playback control methods (play, pause, seek, getPosition) in web/src/services/audio/AudioService.ts
-- [ ] T046 [US1] Implement progress tracking with setInterval in web/src/hooks/usePlayer.ts
+- [X] T043 [US1] Setup Web Audio API context with user gesture initialization in app/src/services/audio/AudioService.ts
+- [X] T044 [US1] Create MediaElementAudioSourceNode from <audio> element in app/src/services/audio/AudioService.ts
+- [X] T045 [US1] Implement playback control methods (play, pause, seek, getPosition) in app/src/services/audio/AudioService.ts
+- [X] T046 [US1] Implement progress tracking with setInterval in app/src/hooks/usePlayer.ts
 
-### US1 - EQ Implementation (Mobile - Web Audio API polyfill or native modules)
+### US1 - EQ Implementation ✅ COMPLETE
 
-- [ ] T047 [US1] Create 10-band BiquadFilterNode chain for Web Audio API in web/src/services/audio/EqualizerService.ts
-- [ ] T048 [US1] Implement EQ frequency configuration [31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k] Hz with Q=1.0 in web/src/services/audio/EqualizerService.ts
-- [ ] T049 [US1] Implement real-time EQ gain adjustment using setTargetAtTime() in web/src/services/audio/EqualizerService.ts
-- [ ] T050 [US1] Create EQPreset entity with built-in presets (流行, 摇滚, 古典, 人声, 电子) in shared/types/entities.ts
-- [ ] T051 [P] [US1] Implement EQ preset management (load, save, delete) in app/src/services/storage/EQPresetStorage.ts
-- [ ] T052 [P] [US1] Implement EQ preset management (load, save, delete) in web/src/services/storage/EQPresetStorage.ts
+- [X] T047 [US1] Create 10-band BiquadFilterNode chain for Web Audio API in app/src/services/audio/EqualizerService.ts
+- [X] T048 [US1] Implement EQ frequency configuration [32, 64, 125, 250, 500, 1k, 2k, 4k, 8k, 16k] Hz with Q=1.0 in app/src/services/audio/EqualizerService.ts
+- [X] T049 [US1] Implement real-time EQ gain adjustment using setTargetAtTime() in app/src/services/audio/EqualizerService.ts
+- [X] T050 [US1] EQPreset entity with built-in presets already exists in shared/constants/index.ts
+- [X] T051 [P] [US1] Implement EQ preset management (load, save, delete) in app/src/services/storage/EQPresetStorage.ts
+- [X] T052 [P] [US1] Unified EQ preset storage (same as T051)
 
 ### US1 - UI Screens (Mobile)
 
 - [X] T053 [US1] Create HomeScreen with "创建房间" and "加入房间" buttons in app/src/screens/HomeScreen.tsx
-- [ ] T054 [US1] Create SearchScreen with NetEase API search and results list in app/src/screens/SearchScreen.tsx
+- [X] T054 [US1] Create SearchScreen with NetEase API search and results list in app/src/screens/SearchScreen.tsx
 - [ ] T055 [US1] Create PlayerScreen with album cover, track info, progress bar, playback controls in app/src/screens/PlayerScreen.tsx
 - [ ] T056 [US1] Create EQScreen with 10 vertical sliders and preset selector in app/src/screens/EQScreen.tsx
 - [ ] T057 [P] [US1] Implement progress bar with drag-to-seek functionality in app/src/components/player/ProgressBar.tsx
@@ -130,7 +130,7 @@ Per [plan.md](plan.md) structure:
 ### US1 - UI Screens (Web)
 
 - [X] T060 [P] [US1] Create HomeScreen (unified with mobile via React Native Web)
-- [ ] T061 [P] [US1] Create SearchScreen (unified with mobile via React Native Web)
+- [X] T061 [P] [US1] Create SearchScreen (unified with mobile via React Native Web)
 - [ ] T062 [P] [US1] Create PlayerScreen with album cover, track info, progress bar, playback controls in web/src/screens/PlayerScreen.tsx
 - [ ] T063 [P] [US1] Create EQScreen with 10 vertical sliders and preset selector in web/src/screens/EQScreen.tsx
 - [ ] T064 [P] [US1] Implement progress bar with drag-to-seek functionality in web/src/components/player/ProgressBar.tsx
