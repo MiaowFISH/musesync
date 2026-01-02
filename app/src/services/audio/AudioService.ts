@@ -108,7 +108,7 @@ export class AudioService {
    * Pause playback
    */
   pause(): void {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       console.warn('[AudioService] Audio element not initialized');
       return;
     }
@@ -122,7 +122,7 @@ export class AudioService {
    * Resume playback
    */
   async resume(): Promise<void> {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       console.warn('[AudioService] Audio element not initialized');
       return;
     }
@@ -146,8 +146,14 @@ export class AudioService {
    * Seek to position (seconds)
    */
   seek(positionSeconds: number): void {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       console.warn('[AudioService] Audio element not initialized');
+      return;
+    }
+
+    // Validate position is a finite number
+    if (!Number.isFinite(positionSeconds) || positionSeconds < 0) {
+      console.warn('[AudioService] Invalid seek position:', positionSeconds);
       return;
     }
 
@@ -159,7 +165,7 @@ export class AudioService {
    * Get current position (seconds)
    */
   getPosition(): number {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       return 0;
     }
 
@@ -170,7 +176,7 @@ export class AudioService {
    * Get duration (seconds)
    */
   getDuration(): number {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       return 0;
     }
 
@@ -181,7 +187,7 @@ export class AudioService {
    * Set volume (0-1)
    */
   setVolume(volume: number): void {
-    if (!this.gainNode) {
+    if (!this.gainNode || !this.isInitialized) {
       console.warn('[AudioService] Gain node not initialized');
       return;
     }
@@ -195,7 +201,7 @@ export class AudioService {
    * Set playback rate (for sync)
    */
   setPlaybackRate(rate: number): void {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       console.warn('[AudioService] Audio element not initialized');
       return;
     }
@@ -207,7 +213,7 @@ export class AudioService {
    * Get playback rate
    */
   getPlaybackRate(): number {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       return 1;
     }
 
@@ -218,7 +224,7 @@ export class AudioService {
    * Check if playing
    */
   isPlaying(): boolean {
-    if (!this.audioElement) {
+    if (!this.audioElement || !this.isInitialized) {
       return false;
     }
 

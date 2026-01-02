@@ -57,8 +57,8 @@ export class MusicService {
         };
       }
 
-      // Call NetEase API
-      const response = await NeteaseCloudMusicApi.search({
+      // Call NetEase API - use cloudsearch instead of search for better data
+      const response = await NeteaseCloudMusicApi.cloudsearch({
         keywords: query.keyword,
         limit: query.limit || 20,
         offset: query.offset || 0,
@@ -69,14 +69,40 @@ export class MusicService {
         throw new Error('NetEase API returned error');
       }
 
-      const songs: SearchSong[] = (response.body.result.songs || []).map((song: any) => ({
-        trackId: String(song.id),
-        title: song.name,
-        artist: song.artists?.map((a: any) => a.name).join(', ') || 'Unknown',
-        album: song.album?.name || '',
-        albumArt: song.album?.picUrl || '',
-        duration: Math.floor((song.duration || 0) / 1000),
-      }));
+      const songs: SearchSong[] = (response.body.result.songs || []).map((song: any) => {
+        // Get album art - cloudsearch should return al.picUrl
+        let albumArt = '';
+        const albumData = song.album || song.al || {};
+        
+        // First try direct picUrl
+        if (albumData.picUrl) {
+          albumArt = albumData.picUrl;
+        } else if (song.al?.picUrl) {
+          albumArt = song.al.picUrl;
+        } else if (albumData.picId) {
+          // Fallback: construct URL from picId (may not work without proper hash)
+          albumArt = `https://p3.music.126.net/${albumData.picId}/${albumData.picId}.jpg`;
+        }
+        
+        // Ensure HTTPS
+        if (albumArt && albumArt.startsWith('http://')) {
+          albumArt = albumArt.replace('http://', 'https://');
+        }
+        
+        // Add size parameter for optimization
+        if (albumArt && !albumArt.includes('param=')) {
+          albumArt += '?param=200y200';
+        }
+
+        return {
+          trackId: String(song.id),
+          title: song.name,
+          artist: song.artists?.map((a: any) => a.name).join(', ') || song.ar?.map((a: any) => a.name).join(', ') || 'Unknown',
+          album: albumData.name || '',
+          albumArt,
+          duration: Math.floor((song.duration || song.dt || 0) / 1000),
+        };
+      });
 
       const result: SearchResult = {
         songs,
@@ -89,7 +115,7 @@ export class MusicService {
 
       return {
         success: true,
-        data: mockResult,
+        data: result,
         cached: false,
         cacheExpiry,
       };
@@ -148,12 +174,36 @@ export class MusicService {
       }
 
       const song = response.body.songs[0];
+      
+      // Build album art URL
+      let albumArt = '';
+      const albumData = song.al || {};
+      
+      if (albumData.picUrl) {
+        albumArt = albumData.picUrl;
+      } else if (albumData.picId) {
+        // Build URL from picId
+        albumArt = `https://p3.music.126.net/${albumData.picId}/${albumData.picId}.jpg`;
+      } else if (albumData.pic_str) {
+        albumArt = `https://p3.music.126.net/${albumData.pic_str}/${albumData.pic_str}.jpg`;
+      }
+      
+      // Ensure HTTPS
+      if (albumArt && albumArt.startsWith('http://')) {
+        albumArt = albumArt.replace('http://', 'https://');
+      }
+      
+      // Add size parameter for optimization
+      if (albumArt && !albumArt.includes('param=')) {
+        albumArt += '?param=300y300'; // 300x300 for detail view
+      }
+
       const detail: SongDetail = {
         trackId: String(song.id),
         title: song.name,
         artist: song.ar?.map((a: any) => a.name).join(', ') || 'Unknown',
-        album: song.al?.name || '',
-        albumArt: song.al?.picUrl || '',
+        album: albumData.name || '',
+        albumArt,
         duration: Math.floor((song.dt || 0) / 1000),
         lyrics: '', // TODO: Fetch lyrics separately if needed
       };
@@ -253,12 +303,29 @@ export class MusicService {
         };
       }
 
+      // Check if this is a free trial version (VIP-only song)
+      const isTrial = audioData.freeTrialInfo !== null && audioData.freeTrialInfo !== undefined;
+      const trialStart = isTrial ? (audioData.freeTrialInfo?.start || 0) : undefined;
+      const trialEnd = isTrial ? (audioData.freeTrialInfo?.end || 0) : undefined;
+
+      // Log trial info for debugging
+      if (isTrial) {
+        console.log('[MusicService] Trial info detected:', {
+          start: trialStart,
+          end: trialEnd,
+          duration: (typeof trialEnd === 'number' && typeof trialStart === 'number') ? trialEnd - trialStart : 0,
+        });
+      }
+
       const result: AudioUrlResult = {
         trackId,
         audioUrl: audioData.url,
         quality,
         bitrate: audioData.br || br,
         audioUrlExpiry: Date.now() + 1200000, // 20 minutes
+        isTrial,
+        trialStart,
+        trialEnd,
       };
 
       // Cache for 20 minutes

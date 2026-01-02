@@ -83,8 +83,11 @@ export interface AudioUrlResult {
   audioUrlExpiry: number; // Unix timestamp
   quality: 'standard' | 'higher' | 'exhigh' | 'lossless' | 'hires';
   bitrate: number; // bits per second
-  size: number; // bytes
-  type: string; // 'mp3', 'flac', etc.
+  size?: number; // bytes (optional)
+  type?: string; // 'mp3', 'flac', etc. (optional)
+  isTrial?: boolean; // true if this is a free trial version (VIP-only song)
+  trialStart?: number; // trial start time in ms (for VIP songs)
+  trialEnd?: number; // trial end time in ms (for VIP songs)
 }
 
 // ============================================================================

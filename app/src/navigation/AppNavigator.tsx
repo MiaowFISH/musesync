@@ -9,14 +9,14 @@ import type { Track } from '@shared/types/entities';
 // Import screens (placeholders for now)
 import { HomeScreen } from '../screens/HomeScreen';
 import { RoomScreen } from '../screens/RoomScreen';
-import { PlayerScreen } from '../screens/PlayerScreen';
-import { SearchScreen } from '../screens/SearchScreen';
+import PlayerScreen from '../screens/PlayerScreen';
+import SearchScreen from '../screens/SearchScreen';
 import { EQScreen } from '../screens/EQScreen';
 
 export type RootStackParamList = {
   Home: undefined;
   Room: { roomId: string };
-  Player: undefined;
+  Player: { trackId: string; track?: any };
   Search: undefined;
   EQ: undefined;
 };

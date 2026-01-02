@@ -55,11 +55,8 @@ export function usePlayer(): UsePlayerResult {
       isInitializedRef.current = true;
     }
 
-    return () => {
-      if (Platform.OS === 'web') {
-        audioService.dispose();
-      }
-    };
+    // Don't cleanup on unmount - AudioService is a singleton
+    // and should persist across component mounts
   }, [store]);
 
   /**

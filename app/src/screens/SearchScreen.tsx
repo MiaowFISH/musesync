@@ -15,14 +15,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
 import { musicApi } from '../services/api/MusicApi';
-import Input from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import type { SearchSong } from '@shared/types/api';
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
 export default function SearchScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { theme } = useTheme();
+  const theme = useTheme();
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<SearchSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -126,9 +126,11 @@ export default function SearchScreen() {
         )}
       </View>
 
-      <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
-        {formatDuration(item.duration)}
-      </Text>
+      <View style={styles.rightInfo}>
+        <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
+          {formatDuration(item.duration)}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 
@@ -285,6 +287,9 @@ const styles = StyleSheet.create({
   },
   album: {
     fontSize: 12,
+  },
+  rightInfo: {
+    alignItems: 'flex-end',
   },
   duration: {
     fontSize: 14,
