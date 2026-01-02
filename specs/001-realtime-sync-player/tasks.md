@@ -24,19 +24,19 @@ Per [plan.md](plan.md) structure:
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup (Shared Infrastructure) ✅ COMPLETE
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create root project structure (app/, web/, backend/, shared/, specs/)
-- [ ] T002 Initialize backend with Bun and TypeScript (backend/package.json, tsconfig.json)
-- [ ] T003 [P] Initialize mobile app with Expo and React Native 0.83.x (app/package.json, app.json)
-- [ ] T004 [P] Initialize web app with Expo Web or Vite (web/package.json, vite.config.ts)
-- [ ] T005 [P] Configure ESLint and Prettier in root (eslintrc.js, .prettierrc)
-- [ ] T006 [P] Setup shared types directory with base entity interfaces (shared/types/entities.ts)
-- [ ] T007 [P] Setup shared constants with socket event names and sync thresholds (shared/constants/index.ts)
-- [ ] T008 Create environment configuration files (.env.example for backend, app, web)
-- [ ] T009 [P] Setup Git ignore patterns for node_modules, build artifacts, .env files
+- [X] T001 Create root project structure (app/, web/, backend/, shared/, specs/)
+- [X] T002 Initialize backend with Bun and TypeScript (backend/package.json, tsconfig.json)
+- [X] T003 [P] Initialize mobile app with Expo and React Native 0.83.x (app/package.json, app.json)
+- [X] T004 [P] Initialize web app with Expo Web or Vite (web/package.json, vite.config.ts)
+- [X] T005 [P] Configure ESLint and Prettier in root (eslintrc.js, .prettierrc)
+- [X] T006 [P] Setup shared types directory with base entity interfaces (shared/types/entities.ts)
+- [X] T007 [P] Setup shared constants with socket event names and sync thresholds (shared/constants/index.ts)
+- [X] T008 Create environment configuration files (.env.example for backend, app, web)
+- [X] T009 [P] Setup Git ignore patterns for node_modules, build artifacts, .env files
 
 ---
 
@@ -46,16 +46,16 @@ Per [plan.md](plan.md) structure:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-### Backend Foundation
+### Backend Foundation ✅ COMPLETE
 
-- [ ] T010 Create Express server with CORS and JSON middleware in backend/src/server.ts
-- [ ] T011 Setup Socket.io server with ping/pong configuration (25s interval, 60s timeout) in backend/src/server.ts
-- [ ] T012 [P] Implement basic room manager service structure in backend/src/services/room/RoomManager.ts
-- [ ] T013 [P] Implement NetEase Music API proxy service structure in backend/src/services/music/MusicService.ts
-- [ ] T014 [P] Setup in-memory storage for room state (or Redis client if using cache) in backend/src/services/room/RoomStore.ts
-- [ ] T015 Create Socket.io event type definitions from contracts in shared/types/socket-events.ts
-- [ ] T016 Create REST API type definitions from contracts in shared/types/api.ts
-- [ ] T017 [P] Implement health check endpoint GET /api/health in backend/src/server.ts
+- [X] T010 Create Express server with CORS and JSON middleware in backend/src/server.ts
+- [X] T011 Setup Socket.io server with ping/pong configuration (25s interval, 60s timeout) in backend/src/server.ts
+- [X] T012 [P] Implement basic room manager service structure in backend/src/services/room/RoomManager.ts
+- [X] T013 [P] Implement NetEase Music API proxy service structure in backend/src/services/music/MusicService.ts
+- [X] T014 [P] Setup in-memory storage for room state (or Redis client if using cache) in backend/src/services/room/RoomStore.ts
+- [X] T015 Create Socket.io event type definitions from contracts in shared/types/socket-events.ts
+- [X] T016 Create REST API type definitions from contracts in shared/types/api.ts
+- [X] T017 [P] Implement health check endpoint GET /api/health in backend/src/server.ts
 
 ### Frontend Foundation (Mobile & Web)
 
