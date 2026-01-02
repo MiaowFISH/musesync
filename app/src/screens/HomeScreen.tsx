@@ -10,7 +10,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { socketManager } from '../services/sync/SocketManager';
+import { socketManager, ensureInitialized } from '../services/sync/SocketManager';
 import { roomService } from '../services/sync/RoomService';
 import { toast } from '../components/common/Toast';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
@@ -73,18 +73,14 @@ export const HomeScreen: React.FC = () => {
     }
   }, [username]);
 
-  // Connect to server on mount
+  // Connect to server on mount - ensure initialization first
   useEffect(() => {
-    const socket = socketManager.connect();
-    
-    return () => {
-      // Clean up on unmount if needed
+    const connectToServer = async () => {
+      await ensureInitialized();
+      const socket = socketManager.connect();
     };
-  }, []);
-
-  // Connect to server on mount
-  useEffect(() => {
-    const socket = socketManager.connect();
+    
+    connectToServer();
     
     return () => {
       // Clean up on unmount if needed

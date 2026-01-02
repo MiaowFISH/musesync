@@ -62,6 +62,7 @@ export class SocketManager {
     }
 
     console.log(`[SocketManager] Connecting to ${this.serverUrl}...`);
+    console.log(`[SocketManager] Platform: ${Platform.OS}`);
     this.setConnectionState('connecting');
 
     this.socket = io(this.serverUrl, {
@@ -71,6 +72,8 @@ export class SocketManager {
       reconnectionDelayMax: NETWORK_CONFIG.RECONNECT_DELAY_MAX_MS || 5000,
       reconnectionAttempts: this.maxReconnectAttempts,
       timeout: NETWORK_CONFIG.REQUEST_TIMEOUT_MS || 10000,
+      // Force WebSocket upgrade for better debugging
+      forceNew: true,
     });
 
     this.setupEventHandlers();
@@ -95,8 +98,15 @@ export class SocketManager {
       this.setConnectionState('disconnected');
     });
 
-    this.socket.on('connect_error', (error) => {
+    this.socket.on('connect_error', (error: any) => {
       console.error('[SocketManager] Connection error:', error.message);
+      console.error('[SocketManager] Error details:', {
+        type: error.type || 'unknown',
+        description: error.description || error.message,
+        context: error.context || 'none',
+        serverUrl: this.serverUrl,
+        platform: Platform.OS,
+      });
       this.reconnectCount++;
       
       if (this.reconnectCount >= this.maxReconnectAttempts) {
@@ -259,20 +269,45 @@ export class SocketManager {
 const defaultUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 export const socketManager = new SocketManager(defaultUrl);
 
+// Track initialization state
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+
 /**
  * Initialize socket manager with stored URL
  * Call this early in app lifecycle
+ * Returns a promise that resolves when initialization is complete
  */
 export async function initializeSocketManager(): Promise<void> {
-  try {
-    const savedUrl = await preferencesStorage.getApiUrl();
-    if (savedUrl) {
-      console.log(`[SocketManager] Loading saved URL: ${savedUrl}`);
-      socketManager.updateServerUrl(savedUrl);
-    }
-  } catch (error) {
-    console.error('[SocketManager] Failed to load stored URL:', error);
+  // Return existing promise if already initializing
+  if (initPromise) {
+    return initPromise;
   }
+  
+  // Return immediately if already initialized
+  if (isInitialized) {
+    return Promise.resolve();
+  }
+  
+  initPromise = (async () => {
+    try {
+      const savedUrl = await preferencesStorage.getApiUrl();
+      if (savedUrl) {
+        console.log(`[SocketManager] Loading saved URL: ${savedUrl}`);
+        socketManager.updateServerUrl(savedUrl);
+      } else {
+        console.log(`[SocketManager] No saved URL, using default: ${defaultUrl}`);
+      }
+      isInitialized = true;
+    } catch (error) {
+      console.error('[SocketManager] Failed to load stored URL:', error);
+      isInitialized = true; // Mark as initialized even on error to prevent infinite retries
+    } finally {
+      initPromise = null;
+    }
+  })();
+  
+  return initPromise;
 }
 
 /**
@@ -280,7 +315,15 @@ export async function initializeSocketManager(): Promise<void> {
  */
 export function updateSocketManagerUrl(newUrl: string): void {
   socketManager.updateServerUrl(newUrl);
+  isInitialized = true; // Mark as initialized after manual update
 }
 
-// Initialize on module load
-initializeSocketManager();
+/**
+ * Ensure socket manager is initialized before connecting
+ * Call this before any socket operations
+ */
+export async function ensureInitialized(): Promise<void> {
+  if (!isInitialized) {
+    await initializeSocketManager();
+  }
+}
