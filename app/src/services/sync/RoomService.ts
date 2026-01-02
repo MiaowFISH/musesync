@@ -50,10 +50,10 @@ export class RoomService {
         clearTimeout(timeout);
 
         if (response.success && response.room) {
-          console.log(`[RoomService] Room created: ${response.room.id}`);
+          console.log(`[RoomService] Room created: ${response.room.roomId}`);
           
           // Start time sync after joining room
-          timeSyncService.performSync(response.room.id, params.userId).catch((error) => {
+          timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
             console.error('[RoomService] Time sync failed:', error);
           });
 
@@ -108,10 +108,10 @@ export class RoomService {
         clearTimeout(timeout);
 
         if (response.success && response.room) {
-          console.log(`[RoomService] Joined room: ${response.room.id}`);
+          console.log(`[RoomService] Joined room: ${response.room.roomId}`);
           
           // Start time sync after joining room
-          timeSyncService.performSync(response.room.id, params.userId).catch((error) => {
+          timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
             console.error('[RoomService] Time sync failed:', error);
           });
 

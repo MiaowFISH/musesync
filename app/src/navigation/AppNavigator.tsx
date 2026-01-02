@@ -4,7 +4,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { Track } from '@shared/types/entities';
+import type { Track, Room } from '@shared/types/entities';
 
 // Import screens (placeholders for now)
 import { HomeScreen } from '../screens/HomeScreen';
@@ -17,7 +17,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 
 export type RootStackParamList = {
   Home: undefined;
-  Room: { roomId: string };
+  Room: { roomId: string; room?: Room; userId?: string };
   Player: { trackId: string; track?: any };
   Search: undefined;
   EQ: undefined;
