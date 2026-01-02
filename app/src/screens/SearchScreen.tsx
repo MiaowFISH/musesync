@@ -146,27 +146,32 @@ export default function SearchScreen() {
 
         await play(track, audioResponse.data.audioUrl);
 
-        // Send sync event if in room
-        if (roomStore.room && deviceId) {
-          console.log('[SearchScreen] Sending sync play event for new track');
-          const result = await syncService.emitPlay({
-            roomId: roomStore.room.roomId,
-            userId: deviceId,
-            trackId: track.trackId,
-            seekTime: 0,
-            version: versionRef.current,
-          });
-          if (result.currentState) {
-            versionRef.current = result.currentState.version;
-            roomStore.updateSyncState(result.currentState);
-          }
-        }
-        
-        // Navigate to player
-        navigation.navigate('Player', {
-          trackId: song.trackId,
-          track,
+      // Send sync event if in room - MUST be after play()
+      if (roomStore.room && deviceId) {
+        console.log('[SearchScreen] Sending sync play event for new track, version:', versionRef.current);
+        const result = await syncService.emitPlay({
+          roomId: roomStore.room.roomId,
+          userId: deviceId,
+          trackId: track.trackId,
+          seekTime: 0,
+          version: versionRef.current,
         });
+        
+        if (result.success && result.currentState) {
+          versionRef.current = result.currentState.version;
+          roomStore.updateSyncState(result.currentState);
+          console.log('[SearchScreen] Sync successful, new version:', versionRef.current, 'track:', track.title);
+        } else {
+          console.error('[SearchScreen] Sync failed:', result.error);
+          toast.error('同步失败: ' + (result.error || '未知错误'));
+        }
+      }
+        
+      // Navigate to player
+      navigation.navigate('Player', {
+        trackId: song.trackId,
+        track,
+      });
       } catch (error) {
         console.error('[SearchScreen] Play error:', error);
         toast.error('Failed to play track');
@@ -203,8 +208,8 @@ export default function SearchScreen() {
       onPress={() => handleSongPress(item)}
       activeOpacity={0.7}
     >
-      {item.albumArt ? (
-        <Image source={{ uri: item.albumArt }} style={styles.albumArt} />
+      {item.coverUrl ? (
+        <Image source={{ uri: item.coverUrl }} style={styles.albumArt} />
       ) : (
         <View style={[styles.albumArt, styles.placeholderArt, { backgroundColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.textSecondary, fontSize: 24 }}>♪</Text>

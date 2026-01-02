@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
 import { usePlayer } from '../hooks/usePlayer';
 import { musicApi } from '../services/api/MusicApi';
@@ -49,8 +49,10 @@ export default function PlayerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [trialInfo, setTrialInfo] = useState<{ isTrial: boolean; start: number; end: number; duration: number } | null>(null);
   const [lyrics, setLyrics] = useState<Array<{ time: number; text: string }>>([]);
+  const [translatedLyrics, setTranslatedLyrics] = useState<Array<{ time: number; text: string }>>([]);
   const [currentLyricIndex, setCurrentLyricIndex] = useState(-1);
-  const [showLyrics, setShowLyrics] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false); // Default hide lyrics
+  const [showTranslation, setShowTranslation] = useState(false); // Show translation toggle
   const lyricsScrollRef = useRef<ScrollView>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,11 +122,15 @@ export default function PlayerScreen() {
       if (hasValidAudioUrl) {
         console.log('[PlayerScreen] Using cached audioUrl');
         setAudioUrl(globalCurrentTrack.audioUrl || null);
+        // Load lyrics for cached track
+        loadLyrics(trackId);
         return;
       } else {
         console.log('[PlayerScreen] AudioUrl missing or expired, fetching new one');
         // Fetch fresh audio URL
         fetchAudioUrl(trackId, globalCurrentTrack);
+        // Load lyrics
+        loadLyrics(trackId);
         return;
       }
     }
@@ -388,6 +394,7 @@ export default function PlayerScreen() {
     // Clear existing interval
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null; // Prevent duplicate intervals
     }
 
     // Only send heartbeats if:
@@ -440,16 +447,29 @@ export default function PlayerScreen() {
   const loadLyrics = async (trackId: string) => {
     try {
       const response = await musicApi.getLyrics(trackId);
-      if (response.success && response.data && response.data.lrc) {
-        const parsedLyrics = parseLrc(response.data.lrc);
-        setLyrics(parsedLyrics);
-        console.log(`[PlayerScreen] Loaded ${parsedLyrics.length} lyrics lines`);
+      if (response.success && response.data) {
+        if (response.data.lrc) {
+          const parsedLyrics = parseLrc(response.data.lrc);
+          setLyrics(parsedLyrics);
+          console.log(`[PlayerScreen] Loaded ${parsedLyrics.length} lyrics lines`);
+        }
+        
+        // Load translated lyrics if available
+        if (response.data.tlyric) {
+          const parsedTranslated = parseLrc(response.data.tlyric);
+          setTranslatedLyrics(parsedTranslated);
+          console.log(`[PlayerScreen] Loaded ${parsedTranslated.length} translated lyrics lines`);
+        } else {
+          setTranslatedLyrics([]);
+        }
       } else {
         setLyrics([]);
+        setTranslatedLyrics([]);
       }
     } catch (err) {
       console.error('[PlayerScreen] Load lyrics error:', err);
       setLyrics([]);
+      setTranslatedLyrics([]);
     }
   };
 
@@ -509,6 +529,13 @@ export default function PlayerScreen() {
       }
     }
   }, [position, lyrics, showLyrics]);
+
+  /**
+   * Toggle lyrics display
+   */
+  const toggleLyrics = () => {
+    setShowLyrics(!showLyrics);
+  };
 
   /**
    * Toggle play/pause
@@ -703,39 +730,73 @@ export default function PlayerScreen() {
             contentContainerStyle={styles.lyricsContent}
             showsVerticalScrollIndicator={false}
           >
-            {lyrics.map((line, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={() => seek(line.time)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.lyricLine,
-                    { color: theme.colors.textSecondary },
-                    index === currentLyricIndex && {
-                      color: theme.colors.primary,
-                      fontSize: 18,
-                      fontWeight: '600',
-                    },
-                  ]}
+            {lyrics.map((line, index) => {
+              const translatedLine = translatedLyrics.find(t => Math.abs(t.time - line.time) < 0.5);
+              return (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => seek(line.time)}
+                  activeOpacity={0.7}
+                  style={styles.lyricLineContainer}
                 >
-                  {line.text}
+                  <Text
+                    style={[
+                      styles.lyricLine,
+                      { color: theme.colors.textSecondary },
+                      index === currentLyricIndex && {
+                        color: theme.colors.primary,
+                        fontSize: 18,
+                        fontWeight: '600',
+                      },
+                    ]}
+                  >
+                    {line.text}
+                  </Text>
+                  {showTranslation && translatedLine && (
+                    <Text
+                      style={[
+                        styles.translatedLine,
+                        { color: theme.colors.textSecondary },
+                        index === currentLyricIndex && {
+                          color: theme.colors.primary,
+                          opacity: 0.8,
+                        },
+                      ]}
+                    >
+                      {translatedLine.text}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.lyricsControls}>
+            <TouchableOpacity
+              style={[styles.lyricsButton, { backgroundColor: theme.colors.surface }]}
+              onPress={() => setShowLyrics(false)}
+            >
+              <Text style={[styles.lyricsButtonText, { color: theme.colors.primary }]}>
+                显示封面
+              </Text>
+            </TouchableOpacity>
+            {translatedLyrics.length > 0 && (
+              <TouchableOpacity
+                style={[styles.lyricsButton, { backgroundColor: theme.colors.surface }]}
+                onPress={() => setShowTranslation(!showTranslation)}
+              >
+                <Text style={[styles.lyricsButtonText, { color: theme.colors.primary }]}>
+                  {showTranslation ? '隐藏翻译' : '显示翻译'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <TouchableOpacity
-            style={[styles.lyricsToggle, { backgroundColor: theme.colors.surface }]}
-            onPress={() => setShowLyrics(false)}
-          >
-            <Text style={[styles.lyricsToggleText, { color: theme.colors.primary }]}>
-              显示封面
-            </Text>
-          </TouchableOpacity>
+            )}
+          </View>
         </View>
       ) : (
-        <View style={styles.albumArtContainer}>
+        <TouchableOpacity
+          style={styles.albumArtContainer}
+          onPress={() => lyrics.length > 0 && setShowLyrics(true)}
+          activeOpacity={lyrics.length > 0 ? 0.8 : 1}
+        >
           {track.coverUrl ? (
             <Image
               source={{ uri: track.coverUrl }}
@@ -748,16 +809,13 @@ export default function PlayerScreen() {
             </View>
           )}
           {lyrics.length > 0 && (
-            <TouchableOpacity
-              style={[styles.lyricsToggle, { backgroundColor: theme.colors.surface }]}
-              onPress={() => setShowLyrics(true)}
-            >
-              <Text style={[styles.lyricsToggleText, { color: theme.colors.primary }]}>
-                显示歌词
+            <View style={[styles.lyricsHint, { backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.lyricsHintText, { color: theme.colors.primary }]}>
+                点击查看歌词
               </Text>
-            </TouchableOpacity>
+            </View>
           )}
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Track Info */}
@@ -923,11 +981,35 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 16,
   },
+  lyricLineContainer: {
+    marginVertical: 8,
+  },
   lyricLine: {
     fontSize: 16,
-    lineHeight: 40,
+    lineHeight: 28,
     textAlign: 'center',
-    marginVertical: 4,
+  },
+  translatedLine: {
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.7,
+  },
+  lyricsControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 16,
+  },
+  lyricsButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  lyricsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   lyricsToggle: {
     marginTop: 16,
@@ -938,6 +1020,18 @@ const styles = StyleSheet.create({
   },
   lyricsToggleText: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  lyricsHint: {
+    position: 'absolute',
+    bottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    opacity: 0.9,
+  },
+  lyricsHintText: {
+    fontSize: 12,
     fontWeight: '600',
   },
   albumArt: {

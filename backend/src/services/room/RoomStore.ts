@@ -75,6 +75,13 @@ class RoomStore {
   }
 
   /**
+   * Get all rooms
+   */
+  getAllRooms(): Room[] {
+    return Array.from(this.rooms.values());
+  }
+
+  /**
    * Get total number of rooms
    */
   getRoomCount(): number {

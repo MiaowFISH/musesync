@@ -70,7 +70,7 @@ export class RoomManager {
         currentTrack: null,
         currentTrackIndex: -1,
         syncState: initialSyncState,
-        controlMode: 'open',
+        controlMode: 'host-only', // Default to host-only for better sync control
         createdAt: Date.now(),
         lastActivityAt: Date.now(),
       };
@@ -308,6 +308,21 @@ export class RoomManager {
    */
   getStats() {
     return roomStore.getStats();
+  }
+
+  /**
+   * Get all rooms (used for disconnect handling)
+   */
+  getAllRooms() {
+    return roomStore.getAllRooms();
+  }
+
+  /**
+   * Update room data (public method for external use)
+   */
+  updateRoom(roomId: string, room: Room): void {
+    roomStore.updateRoom(roomId, room);
+    roomStore.touchRoom(roomId);
   }
 }
 

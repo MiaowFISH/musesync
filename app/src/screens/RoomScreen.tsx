@@ -19,7 +19,6 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import type { Room, User } from '@shared/types/entities';
 import { socketManager } from '../services/sync/SocketManager';
 import { roomService } from '../services/sync/RoomService';
-import { syncService } from '../services/sync/SyncService';
 import { toast } from '../components/common/Toast';
 import { Button } from '../components/ui/Button';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
@@ -27,7 +26,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useRoomStore } from '../stores';
 import { musicApi } from '../services/api/MusicApi';
 import type { Track } from '@shared/types/entities';
-import type { SyncStateEvent, SyncHeartbeatEvent, MemberJoinedEvent, MemberLeftEvent } from '@shared/types/socket-events';
+import type { SyncStateEvent, MemberJoinedEvent, MemberLeftEvent, SyncHeartbeatEvent } from '@shared/types/socket-events';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Room'>;
 type RoomRouteProp = RouteProp<RootStackParamList, 'Room'>;
@@ -97,6 +96,31 @@ export const RoomScreen: React.FC = () => {
         }
       });
 
+      // Control mode changed event
+      socket.on('room:control_mode_changed', (data: any) => {
+        console.log('[RoomScreen] Control mode changed:', data);
+        if (data.room) {
+          setRoom(data.room);
+          roomStore.setRoom(data.room);
+          const modeText = data.controlMode === 'open' ? '开放协作' : '仅主持人';
+          toast.info(`权限模式已改为: ${modeText}`);
+        }
+      });
+
+      // Host transferred event
+      socket.on('room:host_transferred', (data: any) => {
+        console.log('[RoomScreen] Host transferred:', data);
+        if (data.room) {
+          setRoom(data.room);
+          roomStore.setRoom(data.room);
+          if (data.newHostId === userId) {
+            toast.success('你已成为新的主持人');
+          } else {
+            toast.info('主持人已转让');
+          }
+        }
+      });
+
       // Sync state update - apply to local player
       socket.on('sync:state', async (data: SyncStateEvent) => {
         console.log('[RoomScreen] Sync state received:', JSON.stringify(data, null, 2));
@@ -107,6 +131,7 @@ export const RoomScreen: React.FC = () => {
             status: syncState.status,
             position: syncState.seekTime,
             updatedBy: syncState.updatedBy,
+            version: syncState.version,
           });
           
           const updatedRoom = {
@@ -115,6 +140,7 @@ export const RoomScreen: React.FC = () => {
           };
           setRoom(updatedRoom);
           roomStore.setRoom(updatedRoom);
+          roomStore.updateSyncState(syncState);
 
           // Don't sync if this is our own update
           if (syncState.updatedBy === userId) {
@@ -220,7 +246,7 @@ export const RoomScreen: React.FC = () => {
               // Check position drift (use smaller threshold for better sync)
               const timeDrift = Math.abs(position - expectedPosition);
               console.log('[RoomScreen] Time drift:', timeDrift, 'current:', position, 'expected:', expectedPosition);
-              if (timeDrift > 0.5) { // Reduced from 1 second to 0.5 seconds
+              if (timeDrift > 0.3) { // Reduced to 0.3 seconds for tighter sync
                 console.log('[RoomScreen] Seeking to compensated position:', expectedPosition);
                 seek(expectedPosition);
               }
@@ -305,6 +331,8 @@ export const RoomScreen: React.FC = () => {
       if (socket) {
         socket.off('member:joined');
         socket.off('member:left');
+        socket.off('room:control_mode_changed');
+        socket.off('room:host_transferred');
         socket.off('sync:state');
         socket.off('sync:heartbeat');
         socket.off('error');
@@ -355,10 +383,94 @@ export const RoomScreen: React.FC = () => {
         trackId: currentTrack.trackId,
         track: currentTrack,
       });
-    } else {
-      // Otherwise go to search to select a track
-      navigation.navigate('Search');
     }
+  };
+
+  const handleSearchMusic = () => {
+    // Always navigate to Search screen for music search
+    navigation.navigate('Search');
+  };
+
+  const handleToggleControlMode = async () => {
+    if (!room || room.hostId !== userId) {
+      toast.error('只有主持人可以修改权限设置');
+      return;
+    }
+
+    const newMode = room.controlMode === 'open' ? 'host-only' : 'open';
+    const modeText = newMode === 'open' ? '开放协作' : '仅主持人';
+
+    try {
+      // Emit control mode change event
+      const socket = socketManager.getSocket();
+      if (socket) {
+        socket.emit('room:control_mode', {
+          roomId: room.roomId,
+          userId: userId,
+          controlMode: newMode,
+        }, (response: any) => {
+          if (response?.success) {
+            const updatedRoom = { ...room, controlMode: newMode as 'open' | 'host-only' };
+            setRoom(updatedRoom);
+            roomStore.setRoom(updatedRoom);
+            toast.success(`权限模式已改为: ${modeText}`);
+          } else {
+            toast.error('修改权限失败');
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[RoomScreen] Toggle control mode error:', error);
+      toast.error('修改权限失败');
+    }
+  };
+
+  const handleTransferHost = (newHostId: string, newHostName: string) => {
+    if (!room || room.hostId !== userId) {
+      toast.error('只有主持人可以转让所有权');
+      return;
+    }
+
+    if (newHostId === userId) {
+      toast.error('无法转让给自己');
+      return;
+    }
+
+    Alert.alert(
+      '转让所有权',
+      `确认要将房主权限转让给 ${newHostName} 吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const socket = socketManager.getSocket();
+              if (socket) {
+                socket.emit('room:transfer_host', {
+                  roomId: room.roomId,
+                  currentHostId: userId,
+                  newHostId: newHostId,
+                }, (response: any) => {
+                  if (response?.success) {
+                    const updatedRoom = { ...room, hostId: newHostId };
+                    setRoom(updatedRoom);
+                    roomStore.setRoom(updatedRoom);
+                    toast.success(`已将所有权转让给 ${newHostName}`);
+                  } else {
+                    toast.error('转让失败');
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('[RoomScreen] Transfer host error:', error);
+              toast.error('转让失败');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDeviceType = (type: string) => {
@@ -411,6 +523,15 @@ export const RoomScreen: React.FC = () => {
           )}
         </View>
       </View>
+      {/* Transfer host button - only show for host to transfer to others */}
+      {room?.hostId === userId && !isHost && (
+        <TouchableOpacity
+          style={[styles.transferButton, { backgroundColor: colors.primary }]}
+          onPress={() => handleTransferHost(member.userId, member.username)}
+        >
+          <Text style={styles.transferButtonText}>转让</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -495,6 +616,32 @@ export const RoomScreen: React.FC = () => {
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             分享此代码给朋友，让他们加入房间
           </Text>
+
+          {/* Control Mode Toggle - only show for host */}
+          {room?.hostId === userId && (
+            <View style={styles.controlModeContainer}>
+              <Text style={[styles.controlModeLabel, { color: colors.text }]}>
+                操作权限:
+              </Text>
+              <TouchableOpacity
+                style={[styles.controlModeButton, { backgroundColor: colors.primary }]}
+                onPress={handleToggleControlMode}
+              >
+                <Text style={styles.controlModeButtonText}>
+                  {room.controlMode === 'open' ? '🌐 开放协作' : '🔒 仅主持人'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Permission indicator for non-hosts */}
+          {room?.hostId !== userId && room?.controlMode === 'host-only' && (
+            <View style={[styles.permissionBanner, { backgroundColor: colors.warning || '#FF9800' }]}>
+              <Text style={styles.permissionBannerText}>
+                🔒 仅主持人可操作
+              </Text>
+            </View>
+          )}
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -584,7 +731,7 @@ export const RoomScreen: React.FC = () => {
         {/* Actions */}
         <Button
           title="搜索音乐"
-          onPress={handleGoToPlayer}
+          onPress={handleSearchMusic}
           style={styles.actionButton}
         />
       </ScrollView>
@@ -696,6 +843,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   memberInfo: {
     flex: 1,
@@ -726,6 +876,52 @@ const styles = StyleSheet.create({
   },
   memberDetail: {
     fontSize: 12,
+  },
+  transferButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  transferButtonText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  controlModeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  controlModeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  controlModeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  controlModeButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  permissionBanner: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  permissionBannerText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   emptyText: {
     textAlign: 'center',

@@ -173,8 +173,124 @@ export function registerRoomHandlers(socket: Socket) {
   socket.on('disconnect', () => {
     console.log(`[RoomHandlers] Socket ${socket.id} disconnected`);
     
-    // Note: We don't automatically remove users on disconnect
-    // They will be marked as disconnected by the heartbeat timeout
-    // This allows for reconnection without losing room state
+    // Find all rooms this socket is in and remove the user
+    const rooms = roomManager.getAllRooms();
+    for (const room of rooms) {
+      const member = room.members.find(m => m.socketId === socket.id);
+      if (member) {
+        console.log(`[RoomHandlers] Removing ${member.userId} from room ${room.roomId} due to disconnect`);
+        
+        const result = roomManager.leaveRoom(room.roomId, member.userId);
+        
+        // Stop heartbeat
+        syncEngine.stopHeartbeat(`${room.roomId}:${member.userId}`);
+        
+        if (result.deleted) {
+          // Room deleted, cleanup
+          syncEngine.cleanupRoom(room.roomId);
+          console.log(`[RoomHandlers] Room ${room.roomId} deleted (no members)`);
+        } else {
+          // Get updated room
+          const updatedRoom = roomManager.getRoom(room.roomId);
+          
+          // Broadcast member left to remaining members with updated room data
+          socket.to(room.roomId).emit('member:left', {
+            userId: member.userId,
+            newHostId: result.newHostId,
+            room: updatedRoom,
+          });
+          
+          if (result.newHostId) {
+            console.log(`[RoomHandlers] ${member.userId} disconnected from room ${room.roomId}, host transferred to ${result.newHostId}`);
+          } else {
+            console.log(`[RoomHandlers] ${member.userId} disconnected from room ${room.roomId}`);
+          }
+        }
+      }
+    }
+  });
+
+  /**
+   * Handle room:control_mode - toggle control mode
+   */
+  socket.on('room:control_mode', (request: any, callback: any) => {
+    try {
+      console.log(`[RoomHandlers] Control mode change request for room ${request.roomId}`);
+      
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
+      // Only host can change control mode
+      if (room.hostId !== request.userId) {
+        callback({ success: false, error: 'Only host can change control mode' });
+        return;
+      }
+
+      // Update control mode
+      room.controlMode = request.controlMode;
+      roomManager.updateRoom(request.roomId, room);
+
+      // Broadcast to all members
+      socket.to(request.roomId).emit('room:control_mode_changed', {
+        roomId: request.roomId,
+        controlMode: request.controlMode,
+        room: room,
+      });
+
+      callback({ success: true, room });
+      console.log(`[RoomHandlers] Control mode changed to ${request.controlMode} for room ${request.roomId}`);
+    } catch (error) {
+      console.error('[RoomHandlers] Error in room:control_mode:', error);
+      callback({ success: false, error: 'Failed to change control mode' });
+    }
+  });
+
+  /**
+   * Handle room:transfer_host - transfer host privileges
+   */
+  socket.on('room:transfer_host', (request: any, callback: any) => {
+    try {
+      console.log(`[RoomHandlers] Host transfer request for room ${request.roomId}`);
+      
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
+      // Only current host can transfer
+      if (room.hostId !== request.currentHostId) {
+        callback({ success: false, error: 'Only current host can transfer privileges' });
+        return;
+      }
+
+      // Check if new host is a member
+      const newHostMember = room.members.find(m => m.userId === request.newHostId);
+      if (!newHostMember) {
+        callback({ success: false, error: 'New host is not a room member' });
+        return;
+      }
+
+      // Transfer host
+      room.hostId = request.newHostId;
+      roomManager.updateRoom(request.roomId, room);
+
+      // Broadcast to all members
+      socket.to(request.roomId).emit('room:host_transferred', {
+        roomId: request.roomId,
+        oldHostId: request.currentHostId,
+        newHostId: request.newHostId,
+        room: room,
+      });
+
+      callback({ success: true, room });
+      console.log(`[RoomHandlers] Host transferred from ${request.currentHostId} to ${request.newHostId} in room ${request.roomId}`);
+    } catch (error) {
+      console.error('[RoomHandlers] Error in room:transfer_host:', error);
+      callback({ success: false, error: 'Failed to transfer host' });
+    }
   });
 }
