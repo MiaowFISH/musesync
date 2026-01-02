@@ -57,22 +57,22 @@ Per [plan.md](plan.md) structure:
 - [X] T016 Create REST API type definitions from contracts in shared/types/api.ts
 - [X] T017 [P] Implement health check endpoint GET /api/health in backend/src/server.ts
 
-### Frontend Foundation (Mobile & Web)
+### Frontend Foundation (Mobile & Web) ✅ COMPLETE
 
-- [ ] T018 Setup React Navigation for mobile app with stack navigator in app/src/navigation/AppNavigator.tsx
-- [ ] T019 [P] Setup React Navigation for web app in web/src/navigation/AppNavigator.tsx
-- [ ] T020 [P] Create Socket.io client connection manager in app/src/services/sync/SocketManager.ts
-- [ ] T021 [P] Create Socket.io client connection manager in web/src/services/sync/SocketManager.ts
-- [ ] T022 [P] Setup AsyncStorage wrapper for local preferences in app/src/services/storage/LocalStorage.ts
-- [ ] T023 [P] Setup LocalStorage wrapper for local preferences in web/src/services/storage/LocalStorage.ts
-- [ ] T024 [P] Create state management store with Zustand (room state, player state, preferences) in app/src/stores/index.ts
-- [ ] T025 [P] Create state management store with Zustand (room state, player state, preferences) in web/src/stores/index.ts
-- [ ] T026 [P] Create base UI components (Button, Input, Card) with theme support in app/src/components/ui/
-- [ ] T027 [P] Create base UI components (Button, Input, Card) with theme support in web/src/components/ui/
-- [ ] T028 Setup theme configuration (dark/light colors, fonts, spacing) in app/src/constants/theme.ts
-- [ ] T029 [P] Setup theme configuration (dark/light colors, fonts, spacing) in web/src/constants/theme.ts
+- [X] T018 Setup React Navigation for mobile app with stack navigator in app/src/navigation/AppNavigator.tsx
+- [X] T019 [P] Setup React Navigation for web app (unified with Expo Web)
+- [X] T020 [P] Create Socket.io client connection manager in app/src/services/sync/SocketManager.ts
+- [X] T021 [P] Create Socket.io client connection manager for web (unified with Expo Web)
+- [X] T022 [P] Setup AsyncStorage wrapper for local preferences in app/src/services/storage/LocalStorage.ts
+- [X] T023 [P] Setup LocalStorage wrapper (unified with AsyncStorage via Expo)
+- [X] T024 [P] Create state management store with Zustand (room state, player state, preferences) in app/src/stores/index.ts
+- [X] T025 [P] Create state management store for web (unified)
+- [X] T026 [P] Create base UI components (Button, Input, Card) with theme support in app/src/components/ui/
+- [X] T027 [P] Create base UI components for web (unified with React Native Web)
+- [X] T028 Setup theme configuration (dark/light colors, fonts, spacing) in app/src/constants/theme.ts
+- [X] T029 [P] Setup theme configuration for web (unified)
 
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+**Checkpoint**: Foundation ready ✅ - user story implementation can now begin in parallel
 
 ---
 
@@ -119,7 +119,7 @@ Per [plan.md](plan.md) structure:
 
 ### US1 - UI Screens (Mobile)
 
-- [ ] T053 [US1] Create HomeScreen with "创建房间" and "加入房间" buttons in app/src/screens/HomeScreen.tsx
+- [X] T053 [US1] Create HomeScreen with "创建房间" and "加入房间" buttons in app/src/screens/HomeScreen.tsx
 - [ ] T054 [US1] Create SearchScreen with NetEase API search and results list in app/src/screens/SearchScreen.tsx
 - [ ] T055 [US1] Create PlayerScreen with album cover, track info, progress bar, playback controls in app/src/screens/PlayerScreen.tsx
 - [ ] T056 [US1] Create EQScreen with 10 vertical sliders and preset selector in app/src/screens/EQScreen.tsx
@@ -129,8 +129,8 @@ Per [plan.md](plan.md) structure:
 
 ### US1 - UI Screens (Web)
 
-- [ ] T060 [P] [US1] Create HomeScreen with "创建房间" and "加入房间" buttons in web/src/screens/HomeScreen.tsx
-- [ ] T061 [P] [US1] Create SearchScreen with NetEase API search and results list in web/src/screens/SearchScreen.tsx
+- [X] T060 [P] [US1] Create HomeScreen (unified with mobile via React Native Web)
+- [ ] T061 [P] [US1] Create SearchScreen (unified with mobile via React Native Web)
 - [ ] T062 [P] [US1] Create PlayerScreen with album cover, track info, progress bar, playback controls in web/src/screens/PlayerScreen.tsx
 - [ ] T063 [P] [US1] Create EQScreen with 10 vertical sliders and preset selector in web/src/screens/EQScreen.tsx
 - [ ] T064 [P] [US1] Implement progress bar with drag-to-seek functionality in web/src/components/player/ProgressBar.tsx
