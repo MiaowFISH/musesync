@@ -1,7 +1,7 @@
 // app/src/screens/SearchScreen.tsx
 // Music search screen with NetEase API integration
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,18 +14,26 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
+import { usePlayer } from '../hooks/usePlayer';
 import { musicApi } from '../services/api/MusicApi';
 import { Input } from '../components/ui/Input';
 import { toast } from '../components/common/Toast';
 import { searchHistoryStorage } from '../services/storage/SearchHistoryStorage';
+import { preferencesStorage } from '../services/storage/PreferencesStorage';
 import type { SearchSong } from '@shared/types/api';
 import type { SearchHistoryItem } from '../services/storage/SearchHistoryStorage';
+import { useRoomStore } from '../stores';
+import { syncService } from '../services/sync/SyncService';
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
 export default function SearchScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
+  const { play } = usePlayer();
+  const roomStore = useRoomStore();
+  const versionRef = useRef<number>(0);
+
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<SearchSong[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,11 +41,20 @@ export default function SearchScreen() {
   const [totalCount, setTotalCount] = useState(0);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [deviceId, setDeviceId] = useState<string>('');
 
   // Load search history on mount
   useEffect(() => {
     loadSearchHistory();
+    preferencesStorage.getDeviceId().then(setDeviceId);
   }, []);
+
+  // Sync version ref with room state
+  useEffect(() => {
+    if (roomStore.room?.syncState?.version !== undefined) {
+      versionRef.current = roomStore.room.syncState.version;
+    }
+  }, [roomStore.room?.syncState?.version]);
 
   const loadSearchHistory = async () => {
     const history = await searchHistoryStorage.getHistory();
@@ -103,13 +120,59 @@ export default function SearchScreen() {
   );
 
   const handleSongPress = useCallback(
-    (song: SearchSong) => {
-      navigation.navigate('Player', {
-        trackId: song.trackId,
-        track: song,
-      });
+    async (song: SearchSong) => {
+      try {
+        // Get audio URL
+        const audioResponse = await musicApi.getAudioUrl(song.trackId, { quality: 'exhigh' });
+        
+        if (!audioResponse.success || !audioResponse.data) {
+          toast.error('Failed to get audio URL');
+          return;
+        }
+
+        const track = {
+          trackId: song.trackId,
+          title: song.title,
+          artist: song.artist,
+          album: song.album || '',
+          coverUrl: song.coverUrl || '',
+          duration: song.duration,
+          audioUrl: audioResponse.data.audioUrl,
+          audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+          quality: 'exhigh' as const,
+          addedBy: '',
+          addedAt: Date.now(),
+        };
+
+        await play(track, audioResponse.data.audioUrl);
+
+        // Send sync event if in room
+        if (roomStore.room && deviceId) {
+          console.log('[SearchScreen] Sending sync play event for new track');
+          const result = await syncService.emitPlay({
+            roomId: roomStore.room.roomId,
+            userId: deviceId,
+            trackId: track.trackId,
+            seekTime: 0,
+            version: versionRef.current,
+          });
+          if (result.currentState) {
+            versionRef.current = result.currentState.version;
+            roomStore.updateSyncState(result.currentState);
+          }
+        }
+        
+        // Navigate to player
+        navigation.navigate('Player', {
+          trackId: song.trackId,
+          track,
+        });
+      } catch (error) {
+        console.error('[SearchScreen] Play error:', error);
+        toast.error('Failed to play track');
+      }
     },
-    [navigation]
+    [navigation, play, roomStore.room, deviceId]
   );
 
   const handleHistoryPress = (keyword: string) => {

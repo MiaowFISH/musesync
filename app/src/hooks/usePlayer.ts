@@ -45,6 +45,10 @@ export function usePlayer(): UsePlayerResult {
   // Initialize audio service on mount (Web only)
   useEffect(() => {
     if (Platform.OS === 'web' && !isInitializedRef.current) {
+      // Don't try to initialize early - AudioContext requires user gesture
+      // It will be initialized on first play() call
+      console.log('[usePlayer] AudioService will initialize on first user interaction');
+      
       audioService.onProgress((position) => {
         store.setPosition(position);
       });
@@ -113,11 +117,24 @@ export function usePlayer(): UsePlayerResult {
       await audioService.resume();
       store.setPlaying(true);
     } catch (err) {
+      // If resume failed due to uninitialized audio, try to initialize with current track
+      const currentTrack = store.currentTrack;
+      if (currentTrack?.audioUrl) {
+        console.log('[usePlayer] Resume failed, trying to initialize with current track');
+        try {
+          await play(currentTrack, currentTrack.audioUrl);
+          return; // Successfully initialized and playing
+        } catch (playErr) {
+          console.error('[usePlayer] Failed to initialize with current track:', playErr);
+        }
+      }
+      
       const message = err instanceof Error ? err.message : 'Resume failed';
       setError(message);
       console.error('[usePlayer] Resume error:', err);
+      throw err; // Re-throw so caller knows it failed
     }
-  }, [store]);
+  }, [store, play]);
 
   /**
    * Stop playback

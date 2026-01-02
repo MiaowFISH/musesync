@@ -20,7 +20,7 @@ import { MiniPlayer } from '../components/player/MiniPlayer';
 export type RootStackParamList = {
   Home: undefined;
   Room: { roomId: string; room?: Room; userId?: string };
-  Player: { trackId: string; track?: any };
+  Player: { trackId: string; track?: Track };
   Search: undefined;
   EQ: undefined;
   History: undefined;

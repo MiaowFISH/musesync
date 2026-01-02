@@ -27,6 +27,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useRoomStore } from '../stores';
 import { musicApi } from '../services/api/MusicApi';
 import type { Track } from '@shared/types/entities';
+import type { SyncStateEvent, SyncHeartbeatEvent, MemberJoinedEvent, MemberLeftEvent } from '@shared/types/socket-events';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Room'>;
 type RoomRouteProp = RouteProp<RootStackParamList, 'Room'>;
@@ -72,7 +73,7 @@ export const RoomScreen: React.FC = () => {
     const socket = socketManager.getSocket();
     if (socket) {
       // Member joined event
-      socket.on('member:joined', (data: any) => {
+      socket.on('member:joined', (data: MemberJoinedEvent) => {
         console.log('[RoomScreen] Member joined:', data);
         if (data.room) {
           setRoom(data.room);
@@ -82,7 +83,7 @@ export const RoomScreen: React.FC = () => {
       });
 
       // Member left event
-      socket.on('member:left', (data: any) => {
+      socket.on('member:left', (data: MemberLeftEvent) => {
         console.log('[RoomScreen] Member left:', data);
         if (data.room) {
           setRoom(data.room);
@@ -97,10 +98,10 @@ export const RoomScreen: React.FC = () => {
       });
 
       // Sync state update - apply to local player
-      socket.on('sync:state', async (data: any) => {
+      socket.on('sync:state', async (data: SyncStateEvent) => {
         console.log('[RoomScreen] Sync state received:', JSON.stringify(data, null, 2));
-        if (data.state && room) {
-          const syncState = data.state;
+        if (data.syncState && room) {
+          const syncState = data.syncState;
           console.log('[RoomScreen] Sync state details:', {
             trackId: syncState.trackId,
             status: syncState.status,
@@ -116,8 +117,8 @@ export const RoomScreen: React.FC = () => {
           roomStore.setRoom(updatedRoom);
 
           // Don't sync if this is our own update
-          if (data.userId === userId) {
-            console.log('[RoomScreen] Ignoring own sync update (userId match)');
+          if (syncState.updatedBy === userId) {
+            console.log('[RoomScreen] Ignoring own sync update (updatedBy match)');
             return;
           }
 
@@ -201,16 +202,33 @@ export const RoomScreen: React.FC = () => {
               }
             } else if (currentTrack.trackId === syncState.trackId) {
               // Same track, sync playback state
+              console.log('[RoomScreen] Same track, checking sync state');
+              
+              // Calculate network delay compensation
+              const now = Date.now();
+              const syncAge = (now - syncState.serverTimestamp) / 1000; // seconds
+              console.log('[RoomScreen] Sync age (network delay):', syncAge, 'seconds');
+              
+              // Calculate expected position with delay compensation
+              let expectedPosition = syncState.seekTime || 0;
+              if (syncState.status === 'playing') {
+                // If playing, compensate for the time since sync was sent
+                expectedPosition += syncAge;
+                console.log('[RoomScreen] Compensated position:', expectedPosition);
+              }
+              
+              // Check position drift (use smaller threshold for better sync)
+              const timeDrift = Math.abs(position - expectedPosition);
+              console.log('[RoomScreen] Time drift:', timeDrift, 'current:', position, 'expected:', expectedPosition);
+              if (timeDrift > 0.5) { // Reduced from 1 second to 0.5 seconds
+                console.log('[RoomScreen] Seeking to compensated position:', expectedPosition);
+                seek(expectedPosition);
+              }
+              
+              // Then sync play/pause state
               if (syncState.status === 'playing' && !isPlaying) {
                 console.log('[RoomScreen] Syncing: Resume playback');
                 resume();
-                // Sync position if drift > 1 second
-                const timeDrift = Math.abs(position - (syncState.seekTime || 0));
-                console.log('[RoomScreen] Time drift:', timeDrift);
-                if (timeDrift > 1) {
-                  console.log('[RoomScreen] Seeking to:', syncState.seekTime);
-                  seek(syncState.seekTime || 0);
-                }
               } else if (syncState.status === 'paused' && isPlaying) {
                 console.log('[RoomScreen] Syncing: Pause playback');
                 pause();
@@ -231,12 +249,53 @@ export const RoomScreen: React.FC = () => {
       });
 
       // Check if room still exists
-      socket.on('room:error', (data: any) => {
+      socket.on('room:error', (data: { error: string }) => {
         console.error('[RoomScreen] Room error:', data);
         if (data.error?.includes('not found') || data.error?.includes('不存在')) {
           toast.error('房间已失效');
           roomStore.clear();
           navigation.navigate('Home');
+        }
+      });
+
+      // Heartbeat listener - micro-adjust playback position
+      socket.on('sync:heartbeat', async (data: SyncHeartbeatEvent) => {
+        console.log('[RoomScreen] Received heartbeat from host');
+        
+        // Only listeners (non-hosts) should react to heartbeats
+        if (!room || room.hostId === userId) {
+          return;
+        }
+
+        const syncState = data.syncState;
+        if (!syncState) return;
+
+        // Update room store with latest state
+        roomStore.updateSyncState(syncState);
+
+        // Calculate expected position with network delay compensation
+        const now = Date.now();
+        const syncAge = (now - syncState.serverTimestamp) / 1000;
+        let expectedPosition = syncState.seekTime;
+
+        if (syncState.status === 'playing') {
+          expectedPosition += syncAge;
+        }
+
+        // Micro-adjust if drift is significant (>0.3s)
+        const drift = Math.abs(position - expectedPosition);
+        if (drift > 0.3) {
+          console.log(`[RoomScreen] Heartbeat: Drift detected (${drift.toFixed(2)}s), adjusting...`);
+          seek(expectedPosition);
+        }
+
+        // Sync playing state
+        if (syncState.status === 'playing' && !isPlaying) {
+          console.log('[RoomScreen] Heartbeat: Resuming playback');
+          await resume();
+        } else if (syncState.status === 'paused' && isPlaying) {
+          console.log('[RoomScreen] Heartbeat: Pausing playback');
+          pause();
         }
       });
     }
@@ -247,11 +306,12 @@ export const RoomScreen: React.FC = () => {
         socket.off('member:joined');
         socket.off('member:left');
         socket.off('sync:state');
+        socket.off('sync:heartbeat');
         socket.off('error');
         socket.off('room:error');
       }
     };
-  }, [room, navigation]);
+  }, [room, navigation, userId, position, isPlaying]);
 
   const handleLeaveRoom = async () => {
     // Use window.confirm for web compatibility

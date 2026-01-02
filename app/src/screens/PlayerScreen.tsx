@@ -31,7 +31,7 @@ const ALBUM_ART_SIZE = Math.min(SCREEN_WIDTH - 64, 320);
 
 type RouteParams = {
   trackId: string;
-  track?: any;
+  track?: Track;
 };
 
 export default function PlayerScreen() {
@@ -53,10 +53,12 @@ export default function PlayerScreen() {
   const [showLyrics, setShowLyrics] = useState(false);
   const lyricsScrollRef = useRef<ScrollView>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const versionRef = useRef<number>(0); // Track latest version for sync operations
   
   const {
     isPlaying,
+    currentTrack: globalCurrentTrack,
     position,
     duration,
     volume,
@@ -85,6 +87,17 @@ export default function PlayerScreen() {
     }
   }, [roomStore.room?.syncState?.version]);
 
+  // Sync local track state with global current track
+  useEffect(() => {
+    if (globalCurrentTrack && globalCurrentTrack.trackId !== track?.trackId) {
+      console.log('[PlayerScreen] Global track changed, updating local state:', globalCurrentTrack.title);
+      setTrack(globalCurrentTrack);
+      setAudioUrl(globalCurrentTrack.audioUrl || null);
+      // Clear error when track changes
+      setError(null);
+    }
+  }, [globalCurrentTrack, track?.trackId]);
+
   /**
    * Load track details and audio URL
    */
@@ -94,8 +107,65 @@ export default function PlayerScreen() {
       return;
     }
 
+    // Check if track is already loaded
+    if (globalCurrentTrack?.trackId === trackId) {
+      console.log('[PlayerScreen] Track already loaded, checking audioUrl validity');
+      setTrack(globalCurrentTrack);
+      
+      // Check if audioUrl exists and is not expired
+      const hasValidAudioUrl = globalCurrentTrack.audioUrl && 
+                                globalCurrentTrack.audioUrlExpiry && 
+                                globalCurrentTrack.audioUrlExpiry > Date.now();
+      
+      if (hasValidAudioUrl) {
+        console.log('[PlayerScreen] Using cached audioUrl');
+        setAudioUrl(globalCurrentTrack.audioUrl || null);
+        return;
+      } else {
+        console.log('[PlayerScreen] AudioUrl missing or expired, fetching new one');
+        // Fetch fresh audio URL
+        fetchAudioUrl(trackId, globalCurrentTrack);
+        return;
+      }
+    }
+
     loadTrack();
-  }, [trackId]);
+  }, [trackId, globalCurrentTrack]);
+
+  /**
+   * Fetch audio URL for existing track
+   */
+  const fetchAudioUrl = async (trackId: string, existingTrack: Track) => {
+    try {
+      const audioResponse = await musicApi.getAudioUrl(trackId, { quality: 'exhigh' });
+      
+      if (audioResponse.success && audioResponse.data && audioResponse.data.audioUrl) {
+        const updatedTrack = {
+          ...existingTrack,
+          audioUrl: audioResponse.data.audioUrl,
+          audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+        };
+        
+        setTrack(updatedTrack);
+        setAudioUrl(audioResponse.data.audioUrl);
+        
+        // Auto-play if this matches the current track and was playing
+        if (isPlaying || position > 0) {
+          console.log('[PlayerScreen] Resuming with fresh audioUrl');
+          await play(updatedTrack, audioResponse.data.audioUrl);
+          if (position > 0) {
+            seek(position);
+          }
+        }
+      } else {
+        console.error('[PlayerScreen] Failed to get audio URL');
+        setError('Failed to load audio URL');
+      }
+    } catch (error) {
+      console.error('[PlayerScreen] Fetch audio URL error:', error);
+      setError('Failed to load audio URL');
+    }
+  };
 
   const loadTrack = async () => {
     setIsLoadingTrack(true);
@@ -305,8 +375,64 @@ export default function PlayerScreen() {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
     };
   }, []);
+
+  /**
+   * Heartbeat mechanism: Host sends periodic updates to keep room in sync
+   */
+  useEffect(() => {
+    // Clear existing interval
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+
+    // Only send heartbeats if:
+    // 1. In a room
+    // 2. Is room host
+    // 3. Currently playing
+    // 4. Has valid track
+    const isHost = roomStore.room?.hostId === deviceId;
+    if (!roomStore.room || !isHost || !isPlaying || !track) {
+      return;
+    }
+
+    console.log('[PlayerScreen] Starting heartbeat mechanism as host');
+
+    // Send heartbeat every 3 seconds
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (!roomStore.room || !track || !deviceId) return;
+
+      const heartbeat = {
+        roomId: roomStore.room.roomId,
+        fromUserId: deviceId,
+        syncState: {
+          trackId: track.trackId,
+          status: isPlaying ? ('playing' as const) : ('paused' as const),
+          seekTime: position,
+          serverTimestamp: Date.now(),
+          playbackRate: 1.0,
+          volume: volume,
+          updatedBy: deviceId,
+          version: versionRef.current,
+        },
+        clientTime: Date.now(),
+      };
+
+      // Emit heartbeat via socket
+      syncService.emit('sync:heartbeat', heartbeat);
+    }, 3000); // 3 seconds interval
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+    };
+  }, [roomStore.room, deviceId, isPlaying, track, position, volume]);
 
   /**
    * Load and parse lyrics

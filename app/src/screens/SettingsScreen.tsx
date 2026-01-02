@@ -122,9 +122,9 @@ export default function SettingsScreen() {
       } else {
         toast.error(`连接失败 (${response.status})`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[SettingsScreen] Connection test failed:', error);
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         toast.error('连接超时');
       } else {
         toast.error('无法连接到服务器');

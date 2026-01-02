@@ -40,11 +40,13 @@ export class SyncService {
         playbackRate: params.playbackRate,
         volume: params.volume,
         version: params.version,
+        clientTime: Date.now(),
       };
 
       console.log('[SyncService] Emitting play event...', {
         trackId: params.trackId,
         seekTime: params.seekTime,
+        clientTime: request.clientTime,
       });
 
       // Set timeout
@@ -168,6 +170,18 @@ export class SyncService {
     const position = seekTime + elapsed * playbackRate;
 
     return Math.max(0, position); // Ensure non-negative
+  }
+
+  /**
+   * Emit generic event (for heartbeat, etc.)
+   */
+  emit(event: string, data: any): void {
+    const socket = socketManager.getSocket();
+    if (!socket?.connected) {
+      console.warn(`[SyncService] Cannot emit ${event}: not connected`);
+      return;
+    }
+    socket.emit(event, data);
   }
 }
 

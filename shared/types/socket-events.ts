@@ -26,6 +26,7 @@ export interface SocketEvents {
   'sync:next': (data: SyncNextRequest) => void;
   'sync:previous': (data: SyncPreviousRequest) => void;
   'sync:state': (data: SyncStateEvent) => void;
+  'sync:heartbeat': (data: SyncHeartbeatEvent) => void;
   'sync:playlist_add': (data: PlaylistAddRequest) => void;
   'sync:playlist_remove': (data: PlaylistRemoveRequest) => void;
   'sync:playlist_reorder': (data: PlaylistReorderRequest) => void;
@@ -73,6 +74,7 @@ export interface SyncPlayRequest {
   playbackRate?: number;
   volume?: number;
   version?: number; // Client's current version
+  clientTime?: number; // Client timestamp for latency calculation
 }
 
 export interface SyncPauseRequest {
@@ -80,6 +82,7 @@ export interface SyncPauseRequest {
   userId: string;
   seekTime: number;
   version?: number; // Client's current version
+  clientTime?: number; // Client timestamp for latency calculation
 }
 
 export interface SyncSeekRequest {
@@ -87,6 +90,7 @@ export interface SyncSeekRequest {
   userId: string;
   seekTime: number;
   version?: number; // Client's current version
+  clientTime?: number; // Client timestamp for latency calculation
 }
 
 export interface SyncNextRequest {
@@ -155,15 +159,15 @@ export interface RoomLeftResponse {
 }
 
 export interface MemberJoinedEvent {
-  user: User;
-  totalMembers: number;
+  userId: string;
+  username: string;
+  room: Room;
 }
 
 export interface MemberLeftEvent {
   userId: string;
-  username: string;
-  totalMembers: number;
   newHostId?: string;
+  room: Room;
 }
 
 export interface ControlModeChangedEvent {
@@ -175,6 +179,13 @@ export interface SyncStateEvent {
   roomId: string;
   syncState: SyncState;
   currentTrack: Track | null;
+}
+
+export interface SyncHeartbeatEvent {
+  roomId: string;
+  fromUserId: string;
+  syncState: SyncState;
+  clientTime: number; // Sender's local time when heartbeat was sent
 }
 
 export interface PlaylistUpdatedEvent {

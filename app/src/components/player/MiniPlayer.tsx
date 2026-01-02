@@ -1,7 +1,7 @@
 // app/src/components/player/MiniPlayer.tsx
 // Mini player bar that appears at bottom when navigating away from player
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,42 +14,86 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlayer } from '../../hooks/usePlayer';
+import { useRoomStore } from '../../stores';
+import { syncService } from '../../services/sync/SyncService';
+import { preferencesStorage } from '../../services/storage/PreferencesStorage';
 import { PlayIcon } from '../common/PlayIcon';
 
 export const MiniPlayer: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { colors, spacing } = useTheme();
+  const roomStore = useRoomStore();
+  const [deviceId, setDeviceId] = useState<string>('');
+  const versionRef = useRef<number>(0);
+  
   const { 
     currentTrack, 
-    isPlaying, 
+    isPlaying,
+    position,
+    duration,
     isLoading,
-    play,
     pause,
     resume,
+    play,
   } = usePlayer();
+
+  // Load device ID
+  useEffect(() => {
+    preferencesStorage.getDeviceId().then(setDeviceId);
+  }, []);
+
+  // Sync version ref with room state
+  useEffect(() => {
+    if (roomStore.room?.syncState?.version !== undefined) {
+      versionRef.current = roomStore.room.syncState.version;
+    }
+  }, [roomStore.room?.syncState?.version]);
 
   if (!currentTrack) {
     return null;
   }
 
   const handlePlayPause = async () => {
+    if (!currentTrack) return;
+
     try {
       if (isPlaying) {
-        await pause();
-      } else {
-        if (currentTrack.trackId && currentTrack.audioUrl) {
-          await resume();
-        } else {
-          // If no audio loaded, navigate to player to load the track
-          navigation.navigate('Player', {
-            trackId: currentTrack.trackId,
-            track: currentTrack,
+        pause();
+        // Emit pause sync if in room
+        if (roomStore.room && deviceId) {
+          const result = await syncService.emitPause({
+            roomId: roomStore.room.roomId,
+            userId: deviceId,
+            seekTime: position,
+            version: versionRef.current,
           });
+          if (result.currentState) {
+            versionRef.current = result.currentState.version;
+            roomStore.updateSyncState(result.currentState);
+          }
+        }
+      } else {
+        // Resume playback (usePlayer will handle initialization if needed)
+        await resume();
+
+        // Emit play sync if in room
+        if (roomStore.room && currentTrack && deviceId) {
+          const result = await syncService.emitPlay({
+            roomId: roomStore.room.roomId,
+            userId: deviceId,
+            trackId: currentTrack.trackId,
+            seekTime: position,
+            version: versionRef.current,
+          });
+          if (result.currentState) {
+            versionRef.current = result.currentState.version;
+            roomStore.updateSyncState(result.currentState);
+          }
         }
       }
     } catch (error) {
       console.error('[MiniPlayer] Play/pause error:', error);
-      // Navigate to player if resume fails (audio not initialized)
+      // Only navigate on error
       navigation.navigate('Player', {
         trackId: currentTrack.trackId,
         track: currentTrack,
@@ -64,12 +108,27 @@ export const MiniPlayer: React.FC = () => {
     });
   };
 
+  const progressPercentage = duration > 0 ? (position / duration) * 100 : 0;
+
   return (
     <TouchableOpacity
       style={[styles.container, { backgroundColor: colors.surface }]}
       onPress={handleOpenPlayer}
       activeOpacity={0.9}
     >
+      {/* Progress Bar */}
+      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+        <View 
+          style={[
+            styles.progressFill, 
+            { 
+              width: `${progressPercentage}%`,
+              backgroundColor: colors.primary,
+            }
+          ]} 
+        />
+      </View>
+
       <View style={styles.content}>
         {/* Album Art */}
         {currentTrack.coverUrl ? (
@@ -130,6 +189,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 8,
     zIndex: 100,
+  },
+  progressBar: {
+    height: 2,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
   },
   content: {
     flexDirection: 'row',

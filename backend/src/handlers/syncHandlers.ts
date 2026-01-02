@@ -7,6 +7,7 @@ import type {
   SyncPauseRequest,
   SyncSeekRequest,
   TimeSyncRequest,
+  SyncHeartbeatEvent,
 } from '@shared/types/socket-events';
 import { roomManager } from '../services/room/RoomManager';
 import { syncEngine } from '../services/sync/SyncEngine';
@@ -16,6 +17,32 @@ import { timeSyncService } from '../services/sync/TimeSyncService';
  * Register sync-related Socket.io event handlers
  */
 export function registerSyncHandlers(socket: Socket) {
+  /**
+   * Handle sync:heartbeat event - broadcast to other room members
+   */
+  socket.on('sync:heartbeat', (data: SyncHeartbeatEvent) => {
+    try {
+      const room = roomManager.getRoom(data.roomId);
+      if (!room) {
+        console.warn(`[SyncHandlers] Heartbeat: Room ${data.roomId} not found`);
+        return;
+      }
+
+      // Only host should send heartbeats
+      if (data.fromUserId !== room.hostId) {
+        console.warn(`[SyncHandlers] Heartbeat from non-host ${data.fromUserId} rejected`);
+        return;
+      }
+
+      console.log(`[SyncHandlers] Broadcasting heartbeat from host ${data.fromUserId} in room ${data.roomId}`);
+
+      // Broadcast to all other room members (exclude sender)
+      socket.to(data.roomId).emit('sync:heartbeat', data);
+    } catch (error) {
+      console.error('[SyncHandlers] Error in sync:heartbeat:', error);
+    }
+  });
+
   /**
    * Handle sync:play event
    */

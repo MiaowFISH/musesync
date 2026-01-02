@@ -38,10 +38,11 @@ export class SyncEngine {
       return;
     }
 
-    // Broadcast to room except the sender
+    // Broadcast to room except the sender - use SyncStateEvent format
     const eventData = {
-      userId: syncState.updatedBy,
-      state: syncState,
+      roomId: roomId,
+      syncState: syncState,
+      currentTrack: null, // TODO: Add track info if needed
     };
 
     if (excludeSocketId) {
