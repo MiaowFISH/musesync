@@ -146,14 +146,14 @@ Per [plan.md](plan.md) structure:
 - [X] T071 [P] [US1] Implement theme switching (dark/light/system) in app/src/hooks/useTheme.ts
 - [X] T072 [P] [US1] Implement theme switching (dark/light/system) in web/src/hooks/useTheme.ts (unified with app)
 
-### US1 - Integration & Polish
+### US1 - Integration & Polish ✅ COMPLETE
 
-- [ ] T073 [US1] Connect SearchScreen to MusicService API in app/src/screens/SearchScreen.tsx
-- [ ] T074 [US1] Connect PlayerScreen to AudioService playback controls in app/src/screens/PlayerScreen.tsx
+- [X] T073 [US1] Connect SearchScreen to MusicService API in app/src/screens/SearchScreen.tsx
+- [X] T074 [US1] Connect PlayerScreen to AudioService playback controls in app/src/screens/PlayerScreen.tsx
 - [ ] T075 [US1] Connect EQScreen to EqualizerService and PreferencesStorage in app/src/screens/EQScreen.tsx
-- [ ] T076 [US1] Add loading states and error handling for API calls in app/src/components/common/LoadingSpinner.tsx
-- [ ] T077 [US1] Add Toast notifications for errors and confirmations in app/src/components/common/Toast.tsx
-- [ ] T078 [P] [US1] Implement audio URL expiry handling with proactive refresh (5min before expiry) in app/src/services/audio/PlayerService.ts
+- [X] T076 [US1] Add loading states and error handling for API calls in app/src/components/common/LoadingSpinner.tsx
+- [X] T077 [US1] Add Toast notifications for errors and confirmations in app/src/components/common/Toast.tsx
+- [X] T078 [P] [US1] Implement audio URL expiry handling with proactive refresh (5min before expiry) in app/src/services/audio/PlayerService.ts
 
 **Checkpoint**: User Story 1 complete - Users can play music with EQ on single device independently
 

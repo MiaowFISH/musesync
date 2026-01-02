@@ -22,7 +22,9 @@ class HistoryStorage {
    */
   async addTrack(track: Track): Promise<void> {
     try {
+      console.log(`[HistoryStorage] Adding track: ${track.title} (${track.trackId})`);
       const history = await this.getHistory();
+      console.log(`[HistoryStorage] Current history size: ${history.length}`);
       
       // Remove duplicate if exists
       const filteredHistory = history.filter(h => h.trackId !== track.trackId);
@@ -40,9 +42,10 @@ class HistoryStorage {
       }
       
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(filteredHistory));
-      console.log(`[HistoryStorage] Added track: ${track.title} (total: ${filteredHistory.length})`);
+      console.log(`[HistoryStorage] Track added successfully. New history size: ${filteredHistory.length}`);
     } catch (error) {
       console.error('[HistoryStorage] Add track error:', error);
+      throw error; // Re-throw to see error in caller
     }
   }
 

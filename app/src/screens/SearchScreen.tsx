@@ -16,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
 import { musicApi } from '../services/api/MusicApi';
 import { Input } from '../components/ui/Input';
+import { toast } from '../components/common/Toast';
 import type { SearchSong } from '@shared/types/api';
 
 type NavigationProp = NativeStackNavigationProp<any>;
@@ -57,7 +58,9 @@ export default function SearchScreen() {
       }
     } catch (err) {
       console.error('[SearchScreen] Search error:', err);
-      setError('Search failed');
+      const errorMessage = 'Search failed. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setResults([]);
       setTotalCount(0);
     } finally {
@@ -75,7 +78,7 @@ export default function SearchScreen() {
 
       const newTimeout = setTimeout(() => {
         performSearch(text);
-      }, 500);
+      }, 800); // Increased from 500ms to reduce API calls
 
       setSearchTimeout(newTimeout);
     },
@@ -166,6 +169,19 @@ export default function SearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header with back button */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={[styles.backButtonText, { color: theme.colors.text }]}>←</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>搜索音乐</Text>
+        <View style={styles.headerRight} />
+      </View>
+
       <View style={styles.searchBar}>
         <Input
           placeholder="搜索歌曲、歌手、专辑..."
@@ -215,6 +231,34 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    height: 60,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: {
+    fontSize: 28,
+    lineHeight: 44,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRight: {
+    width: 44,
   },
   searchBar: {
     paddingHorizontal: 16,

@@ -18,6 +18,7 @@ import { useTheme } from '../hooks/useTheme';
 import { usePlayer } from '../hooks/usePlayer';
 import { musicApi } from '../services/api/MusicApi';
 import { historyStorage } from '../services/storage/HistoryStorage';
+import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -36,6 +37,7 @@ export default function PlayerScreen() {
   
   const [track, setTrack] = useState<Track | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioUrlExpiry, setAudioUrlExpiry] = useState<number>(0);
   const [isLoadingTrack, setIsLoadingTrack] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trialInfo, setTrialInfo] = useState<{ isTrial: boolean; start: number; end: number; duration: number } | null>(null);
@@ -43,6 +45,7 @@ export default function PlayerScreen() {
   const [currentLyricIndex, setCurrentLyricIndex] = useState(-1);
   const [showLyrics, setShowLyrics] = useState(false);
   const lyricsScrollRef = useRef<ScrollView>(null);
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const {
     isPlaying,
@@ -119,6 +122,10 @@ export default function PlayerScreen() {
       }
 
       setAudioUrl(audioResponse.data.audioUrl);
+      setAudioUrlExpiry(audioResponse.data.audioUrlExpiry);
+
+      // Setup proactive refresh (5 minutes before expiry)
+      setupAudioUrlRefresh(trackId, audioResponse.data.audioUrlExpiry);
 
       // Check if this is a trial version
       console.log('[PlayerScreen] Audio response:', {
@@ -153,17 +160,78 @@ export default function PlayerScreen() {
       }
 
       // Add to history
-      await historyStorage.addTrack(trackData);
+      try {
+        console.log('[PlayerScreen] Adding track to history:', trackData.title);
+        await historyStorage.addTrack(trackData);
+        console.log('[PlayerScreen] Track added to history successfully');
+      } catch (histErr) {
+        console.error('[PlayerScreen] Failed to add track to history:', histErr);
+      }
 
       // Load lyrics
       loadLyrics(trackId);
     } catch (err) {
       console.error('[PlayerScreen] Load track error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load track');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load track';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoadingTrack(false);
     }
   };
+
+  /**
+   * Setup proactive audio URL refresh (5 minutes before expiry)
+   */
+  const setupAudioUrlRefresh = (trackId: string, expiryTimestamp: number) => {
+    // Clear existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    // Calculate time until refresh (5 minutes before expiry)
+    const now = Date.now();
+    const timeUntilRefresh = expiryTimestamp - now - (5 * 60 * 1000); // 5 minutes
+
+    if (timeUntilRefresh > 0) {
+      console.log(`[PlayerScreen] Audio URL will refresh in ${Math.round(timeUntilRefresh / 1000)}s`);
+      
+      refreshTimerRef.current = setTimeout(async () => {
+        try {
+          console.log('[PlayerScreen] Refreshing audio URL...');
+          const response = await musicApi.getAudioUrl(trackId, { quality: 'exhigh', refresh: true });
+          
+          if (response.success && response.data) {
+            const currentPosition = position;
+            setAudioUrl(response.data.audioUrl);
+            setAudioUrlExpiry(response.data.audioUrlExpiry);
+            
+            // Resume playback at current position
+            if (track && response.data.audioUrl) {
+              await play(track, response.data.audioUrl);
+              seek(currentPosition);
+            }
+            
+            // Setup next refresh
+            setupAudioUrlRefresh(trackId, response.data.audioUrlExpiry);
+            toast.success('Audio URL refreshed');
+          }
+        } catch (error) {
+          console.error('[PlayerScreen] Audio URL refresh error:', error);
+          toast.error('Failed to refresh audio URL');
+        }
+      }, timeUntilRefresh);
+    }
+  };
+
+  // Cleanup refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Load and parse lyrics

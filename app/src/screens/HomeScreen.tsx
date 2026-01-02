@@ -34,6 +34,10 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('Search');
   };
 
+  const handleHistory = () => {
+    navigation.navigate('History');
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -89,6 +93,12 @@ export const HomeScreen: React.FC = () => {
           title="搜索音乐" 
           onPress={handleSearch}
           style={{ marginTop: spacing.md }}
+          variant="outline"
+        />
+        <Button 
+          title="播放历史" 
+          onPress={handleHistory}
+          style={{ marginTop: spacing.sm }}
           variant="outline"
         />
       </Card>
