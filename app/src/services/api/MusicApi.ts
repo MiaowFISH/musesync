@@ -1,6 +1,7 @@
 // app/src/services/api/MusicApi.ts
 // Frontend API client for music service
 
+import { preferencesStorage } from '../storage/PreferencesStorage';
 import type {
   SearchQuery,
   SearchResult,
@@ -12,7 +13,47 @@ import type {
   ApiResponse,
 } from '@shared/types/api';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+let API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+let isInitialized = false;
+
+/**
+ * Initialize API with stored URL
+ */
+async function initializeApiUrl(): Promise<void> {
+  if (isInitialized) return;
+  
+  try {
+    const savedUrl = await preferencesStorage.getApiUrl();
+    if (savedUrl) {
+      API_BASE_URL = savedUrl;
+      console.log(`[MusicApi] Using configured API URL: ${API_BASE_URL}`);
+    } else {
+      console.log(`[MusicApi] Using default API URL: ${API_BASE_URL}`);
+    }
+  } catch (error) {
+    console.error('[MusicApi] Failed to load API URL from storage:', error);
+  } finally {
+    isInitialized = true;
+  }
+}
+
+/**
+ * Get current API base URL (with lazy initialization)
+ */
+async function getApiBaseUrl(): Promise<string> {
+  if (!isInitialized) {
+    await initializeApiUrl();
+  }
+  return API_BASE_URL;
+}
+
+/**
+ * Update API base URL (call after saving new URL in settings)
+ */
+export function updateApiBaseUrl(newUrl: string): void {
+  API_BASE_URL = newUrl;
+  console.log(`[MusicApi] API URL updated to: ${API_BASE_URL}`);
+}
 
 /**
  * Music API Client
@@ -24,13 +65,14 @@ export class MusicApi {
    */
   async search(query: SearchQuery): Promise<ApiResponse<SearchResult>> {
     try {
+      const baseUrl = await getApiBaseUrl();
       const params = new URLSearchParams({
         keyword: query.keyword,
         ...(query.limit && { limit: query.limit.toString() }),
         ...(query.offset && { offset: query.offset.toString() }),
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/music/search?${params}`);
+      const response = await fetch(`${baseUrl}/api/music/search?${params}`);
       const data: ApiResponse<SearchResult> = await response.json();
       return data;
     } catch (error) {
@@ -50,7 +92,8 @@ export class MusicApi {
    */
   async getSongDetail(trackId: string): Promise<ApiResponse<SongDetail>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/music/song/${trackId}`);
+      const baseUrl = await getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/music/song/${trackId}`);
       const data: ApiResponse<SongDetail> = await response.json();
       return data;
     } catch (error) {
@@ -70,12 +113,13 @@ export class MusicApi {
    */
   async getAudioUrl(trackId: string, query: AudioUrlQuery = {}): Promise<ApiResponse<AudioUrlResult>> {
     try {
+      const baseUrl = await getApiBaseUrl();
       const params = new URLSearchParams({
         ...(query.quality && { quality: query.quality }),
         ...(query.refresh && { refresh: 'true' }),
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/music/audio/${trackId}?${params}`);
+      const response = await fetch(`${baseUrl}/api/music/audio/${trackId}?${params}`);
       const data: ApiResponse<AudioUrlResult> = await response.json();
       return data;
     } catch (error) {
@@ -95,7 +139,8 @@ export class MusicApi {
    */
   async getBatchAudioUrls(request: BatchAudioUrlRequest): Promise<ApiResponse<BatchAudioUrlResult>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/music/batch/audio`, {
+      const baseUrl = await getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/music/batch/audio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +167,8 @@ export class MusicApi {
    */
   async getLyrics(trackId: string): Promise<ApiResponse<{ lrc: string; tlyric?: string }>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/music/lyrics/${trackId}`);
+      const baseUrl = await getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/music/lyrics/${trackId}`);
       const data: ApiResponse<{ lrc: string; tlyric?: string }> = await response.json();
       return data;
     } catch (error) {
@@ -142,7 +188,8 @@ export class MusicApi {
    */
   async checkHealth(): Promise<{ status: string; cache?: any; timestamp?: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/music/health`);
+      const baseUrl = await getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/music/health`);
       const data = await response.json();
       return data;
     } catch (error) {

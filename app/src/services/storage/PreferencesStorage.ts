@@ -9,6 +9,7 @@ const KEYS = {
   LAST_PRESET: '@musictogether:last_preset',
   VOLUME: '@musictogether:volume',
   AUTO_PLAY: '@musictogether:auto_play',
+  API_URL: '@musictogether:api_url',
 } as const;
 
 export interface PreferencesData {
@@ -120,6 +121,30 @@ class PreferencesStorage {
       await AsyncStorage.setItem(KEYS.AUTO_PLAY, enabled.toString());
     } catch (error) {
       console.error('[PreferencesStorage] Set auto-play error:', error);
+    }
+  }
+
+  /**
+   * Get API URL
+   */
+  async getApiUrl(): Promise<string | null> {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.API_URL);
+      return value;
+    } catch (error) {
+      console.error('[PreferencesStorage] Get API URL error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Set API URL
+   */
+  async setApiUrl(url: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.API_URL, url);
+    } catch (error) {
+      console.error('[PreferencesStorage] Set API URL error:', error);
     }
   }
 

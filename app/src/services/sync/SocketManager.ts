@@ -3,6 +3,7 @@
 
 import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
+import { preferencesStorage } from '../storage/PreferencesStorage';
 import type { SocketEvents } from '@shared/types/socket-events';
 import { NETWORK_CONFIG } from '@shared/constants';
 
@@ -26,6 +27,23 @@ export class SocketManager {
   constructor(serverUrl: string = 'http://localhost:3000') {
     this.serverUrl = serverUrl;
     console.log(`[SocketManager] Initialized with server URL: ${serverUrl}`);
+  }
+
+  /**
+   * Update server URL (call after changing API URL in settings)
+   */
+  updateServerUrl(newUrl: string): void {
+    if (this.serverUrl === newUrl) return;
+    
+    console.log(`[SocketManager] Updating URL from ${this.serverUrl} to ${newUrl}`);
+    
+    // Disconnect old connection if exists
+    if (this.socket?.connected) {
+      this.disconnect();
+    }
+    
+    // Update server URL
+    this.serverUrl = newUrl;
   }
 
   /**
@@ -236,7 +254,33 @@ export class SocketManager {
   }
 }
 
-// Singleton instance
-export const socketManager = new SocketManager(
-  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'
-);
+// Create singleton instance with default URL
+// Will be updated with stored URL after initialization
+const defaultUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+export const socketManager = new SocketManager(defaultUrl);
+
+/**
+ * Initialize socket manager with stored URL
+ * Call this early in app lifecycle
+ */
+export async function initializeSocketManager(): Promise<void> {
+  try {
+    const savedUrl = await preferencesStorage.getApiUrl();
+    if (savedUrl) {
+      console.log(`[SocketManager] Loading saved URL: ${savedUrl}`);
+      socketManager.updateServerUrl(savedUrl);
+    }
+  } catch (error) {
+    console.error('[SocketManager] Failed to load stored URL:', error);
+  }
+}
+
+/**
+ * Update socket manager URL (call after saving new URL in settings)
+ */
+export function updateSocketManagerUrl(newUrl: string): void {
+  socketManager.updateServerUrl(newUrl);
+}
+
+// Initialize on module load
+initializeSocketManager();

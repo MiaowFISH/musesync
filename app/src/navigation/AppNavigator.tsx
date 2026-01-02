@@ -13,6 +13,7 @@ import PlayerScreen from '../screens/PlayerScreen';
 import SearchScreen from '../screens/SearchScreen';
 import { EQScreen } from '../screens/EQScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -21,6 +22,7 @@ export type RootStackParamList = {
   Search: undefined;
   EQ: undefined;
   History: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -41,6 +43,7 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="Search" component={SearchScreen} />
         <Stack.Screen name="EQ" component={EQScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

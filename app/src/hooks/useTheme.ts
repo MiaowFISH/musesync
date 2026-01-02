@@ -29,8 +29,21 @@ export const useThemeManager = () => {
   useEffect(() => {
     const loadTheme = async () => {
       const savedTheme = await preferencesStorage.getTheme();
-      if (preferences.theme !== savedTheme) {
-        setPreferences({ ...preferences, theme: savedTheme });
+      if (!preferences || preferences.theme !== savedTheme) {
+        const defaultPreferences: typeof preferences = {
+          theme: 'system',
+          eqEnabled: false,
+          currentEQPresetId: null,
+          customEQPresets: [],
+          playbackHistory: [],
+          recentRooms: [],
+          username: '',
+          audioQualityPreference: 'auto',
+        };
+        setPreferences({ 
+          ...(preferences || defaultPreferences), 
+          theme: savedTheme 
+        });
       }
     };
     loadTheme();
@@ -41,14 +54,28 @@ export const useThemeManager = () => {
    */
   const setTheme = async (newTheme: 'light' | 'dark' | 'system') => {
     await preferencesStorage.setTheme(newTheme);
-    setPreferences({ ...preferences, theme: newTheme });
+    const defaultPreferences: typeof preferences = {
+      theme: 'system',
+      eqEnabled: false,
+      currentEQPresetId: null,
+      customEQPresets: [],
+      playbackHistory: [],
+      recentRooms: [],
+      username: '',
+      audioQualityPreference: 'auto',
+    };
+    setPreferences({ 
+      ...(preferences || defaultPreferences), 
+      theme: newTheme 
+    });
   };
 
+  const currentTheme = preferences?.theme || 'system';
   const effectiveTheme =
-    preferences.theme === 'system' ? systemColorScheme || 'dark' : preferences.theme;
+    currentTheme === 'system' ? systemColorScheme || 'dark' : currentTheme;
 
   return {
-    theme: preferences.theme,
+    theme: currentTheme,
     effectiveTheme,
     setTheme,
     themeColors: theme[effectiveTheme],

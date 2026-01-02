@@ -38,6 +38,10 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('History');
   };
 
+  const handleSettings = () => {
+    navigation.navigate('Settings');
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -48,6 +52,13 @@ export const HomeScreen: React.FC = () => {
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           多设备实时同步音乐播放器
         </Text>
+        
+        <Button 
+          title="⚙️ 设置" 
+          onPress={handleSettings}
+          style={{ marginTop: spacing.md }}
+          variant="outline"
+        />
       </View>
 
       <Card style={styles.card}>
