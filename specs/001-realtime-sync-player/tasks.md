@@ -137,14 +137,14 @@ Per [plan.md](plan.md) structure:
 - [ ] T065 [P] [US1] Implement playback control buttons (play/pause, next, previous) in web/src/components/player/PlaybackControls.tsx
 - [ ] T066 [P] [US1] Implement EQ slider component with real-time value display in web/src/components/eq/EQSlider.tsx
 
-### US1 - Local Storage & Preferences
+### US1 - Local Storage & Preferences ✅ COMPLETE
 
-- [ ] T067 [P] [US1] Implement LocalPreferences entity storage (theme, EQ settings, history) in app/src/services/storage/PreferencesStorage.ts
-- [ ] T068 [P] [US1] Implement LocalPreferences entity storage (theme, EQ settings, history) in web/src/services/storage/PreferencesStorage.ts
-- [ ] T069 [P] [US1] Implement playback history management (max 100 tracks, FIFO) in app/src/services/storage/HistoryStorage.ts
-- [ ] T070 [P] [US1] Implement playback history management (max 100 tracks, FIFO) in web/src/services/storage/HistoryStorage.ts
-- [ ] T071 [P] [US1] Implement theme switching (dark/light/system) in app/src/hooks/useTheme.ts
-- [ ] T072 [P] [US1] Implement theme switching (dark/light/system) in web/src/hooks/useTheme.ts
+- [X] T067 [P] [US1] Implement LocalPreferences entity storage (theme, EQ settings, history) in app/src/services/storage/PreferencesStorage.ts
+- [X] T068 [P] [US1] Implement LocalPreferences entity storage (theme, EQ settings, history) in web/src/services/storage/PreferencesStorage.ts (unified with app)
+- [X] T069 [P] [US1] Implement playback history management (max 100 tracks, FIFO) in app/src/services/storage/HistoryStorage.ts
+- [X] T070 [P] [US1] Implement playback history management (max 100 tracks, FIFO) in web/src/services/storage/HistoryStorage.ts (unified with app)
+- [X] T071 [P] [US1] Implement theme switching (dark/light/system) in app/src/hooks/useTheme.ts
+- [X] T072 [P] [US1] Implement theme switching (dark/light/system) in web/src/hooks/useTheme.ts (unified with app)
 
 ### US1 - Integration & Polish
 

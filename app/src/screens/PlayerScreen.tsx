@@ -17,6 +17,7 @@ import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-n
 import { useTheme } from '../hooks/useTheme';
 import { usePlayer } from '../hooks/usePlayer';
 import { musicApi } from '../services/api/MusicApi';
+import { historyStorage } from '../services/storage/HistoryStorage';
 import type { Track } from '@shared/types/entities';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -150,6 +151,9 @@ export default function PlayerScreen() {
       if (audioResponse.data.audioUrl) {
         await play(trackData, audioResponse.data.audioUrl);
       }
+
+      // Add to history
+      await historyStorage.addTrack(trackData);
 
       // Load lyrics
       loadLyrics(trackId);
