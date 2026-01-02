@@ -69,7 +69,9 @@ export interface SyncPlayRequest {
   roomId: string;
   userId: string;
   trackId: string;
-  seekTime: number;
+  seekTime?: number;
+  playbackRate?: number;
+  volume?: number;
 }
 
 export interface SyncPauseRequest {
@@ -114,7 +116,9 @@ export interface PlaylistReorderRequest {
 }
 
 export interface TimeSyncRequest {
-  clientTimestamp: number;
+  t0: number; // Client send timestamp
+  roomId?: string; // Optional room ID for activity tracking
+  userId?: string; // Optional user ID for activity tracking
 }
 
 // ============================================================================
@@ -178,9 +182,11 @@ export interface PlaylistUpdatedEvent {
 }
 
 export interface TimeSyncResponse {
-  clientTimestamp: number;
-  serverReceiveTime: number;
-  serverSendTime: number;
+  success: boolean;
+  t0: number; // Client send timestamp (echo)
+  t1: number; // Server receive timestamp
+  t2: number; // Server send timestamp
+  // Client will add t3 (client receive timestamp) locally
 }
 
 // ============================================================================

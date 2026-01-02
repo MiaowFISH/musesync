@@ -9,6 +9,13 @@ import cors from 'cors';
 // Import routes
 import musicRoutes from './routes/music';
 
+// Import handlers
+import { registerRoomHandlers } from './handlers/roomHandlers';
+import { registerSyncHandlers } from './handlers/syncHandlers';
+
+// Import services
+import { syncEngine } from './services/sync/SyncEngine';
+
 // Import types
 import type { SocketEvents } from '@shared/types/socket-events';
 
@@ -58,9 +65,18 @@ const io = new SocketIOServer<SocketEvents>(httpServer, {
   maxHttpBufferSize: 1e6, // 1MB max message size
 });
 
-// Connection event logging
+// Initialize sync engine with Socket.io instance
+syncEngine.initialize(io);
+
+// Register Socket.io event handlers
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
+
+  // Register room handlers (create, join, leave)
+  registerRoomHandlers(socket);
+
+  // Register sync handlers (play, pause, seek, time sync)
+  registerSyncHandlers(socket);
 
   socket.on('disconnect', (reason) => {
     console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);

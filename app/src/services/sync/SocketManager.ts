@@ -2,77 +2,97 @@
 // Socket.io client connection manager
 
 import { Platform } from 'react-native';
+import { io, Socket } from 'socket.io-client';
 import type { SocketEvents } from '@shared/types/socket-events';
-import { SOCKET_EVENTS, NETWORK_CONFIG } from '@shared/constants';
+import { NETWORK_CONFIG } from '@shared/constants';
 
-// Type-only import to avoid loading the module
-type Socket = any;
+/**
+ * Connection state
+ */
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 /**
  * Socket Manager
  * Manages Socket.io connection with automatic reconnection
- * Note: Currently disabled for Web due to import.meta compatibility issues
  */
 export class SocketManager {
   private socket: Socket | null = null;
   private serverUrl: string;
-  private isConnecting = false;
-  private isWebPlatform = Platform.OS === 'web';
+  private connectionState: ConnectionState = 'disconnected';
+  private stateListeners: Set<(state: ConnectionState) => void> = new Set();
+  private reconnectCount = 0;
+  private maxReconnectAttempts = 5;
 
   constructor(serverUrl: string = 'http://localhost:3000') {
     this.serverUrl = serverUrl;
-    if (this.isWebPlatform) {
-      console.log('[SocketManager] Socket.io is temporarily disabled on Web platform');
-    }
+    console.log(`[SocketManager] Initialized with server URL: ${serverUrl}`);
   }
 
   /**
    * Connect to server
    */
-  async connect(): Promise<void> {
-    // Skip connection on Web platform for now
-    if (this.isWebPlatform) {
-      console.log('[SocketManager] Skipping connection on Web platform');
-      return;
+  connect(): Socket {
+    if (this.socket?.connected) {
+      console.log('[SocketManager] Already connected');
+      return this.socket;
     }
 
-    if (this.socket?.connected || this.isConnecting) {
-      console.log('[SocketManager] Already connected or connecting');
-      return;
+    if (this.socket && !this.socket.connected) {
+      console.log('[SocketManager] Reconnecting existing socket...');
+      this.socket.connect();
+      return this.socket;
     }
 
-    this.isConnecting = true;
-
-    // Dynamic import only on native platforms
-    const { io } = await import('socket.io-client');
+    console.log(`[SocketManager] Connecting to ${this.serverUrl}...`);
+    this.setConnectionState('connecting');
 
     this.socket = io(this.serverUrl, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: NETWORK_CONFIG.RECONNECT_DELAY_MS,
-      reconnectionDelayMax: NETWORK_CONFIG.RECONNECT_DELAY_MAX_MS,
-      reconnectionAttempts: NETWORK_CONFIG.RECONNECT_ATTEMPTS,
-      timeout: NETWORK_CONFIG.REQUEST_TIMEOUT_MS,
+      reconnectionDelay: NETWORK_CONFIG.RECONNECT_DELAY_MS || 1000,
+      reconnectionDelayMax: NETWORK_CONFIG.RECONNECT_DELAY_MAX_MS || 5000,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      timeout: NETWORK_CONFIG.REQUEST_TIMEOUT_MS || 10000,
     });
 
-    // Connection event handlers
+    this.setupEventHandlers();
+
+    return this.socket;
+  }
+
+  /**
+   * Setup socket event handlers
+   */
+  private setupEventHandlers(): void {
+    if (!this.socket) return;
+
     this.socket.on('connect', () => {
-      console.log('[SocketManager] Connected:', this.socket?.id);
-      this.isConnecting = false;
+      console.log(`[SocketManager] Connected with ID: ${this.socket?.id}`);
+      this.reconnectCount = 0;
+      this.setConnectionState('connected');
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('[SocketManager] Disconnected:', reason);
-      this.isConnecting = false;
+      console.log(`[SocketManager] Disconnected: ${reason}`);
+      this.setConnectionState('disconnected');
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('[SocketManager] Connection error:', error);
-      this.isConnecting = false;
+      console.error('[SocketManager] Connection error:', error.message);
+      this.reconnectCount++;
+      
+      if (this.reconnectCount >= this.maxReconnectAttempts) {
+        console.error('[SocketManager] Max reconnection attempts reached');
+        this.setConnectionState('error');
+      } else {
+        this.setConnectionState('connecting');
+      }
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log('[SocketManager] Reconnected after', attemptNumber, 'attempts');
+      console.log(`[SocketManager] Reconnected after ${attemptNumber} attempts`);
+      this.reconnectCount = 0;
+      this.setConnectionState('connected');
     });
 
     this.socket.on('reconnect_error', (error) => {
@@ -81,7 +101,11 @@ export class SocketManager {
 
     this.socket.on('reconnect_failed', () => {
       console.error('[SocketManager] Reconnection failed');
-      this.isConnecting = false;
+      this.setConnectionState('error');
+    });
+
+    this.socket.on('error', (error) => {
+      console.error('[SocketManager] Socket error:', error);
     });
   }
 
@@ -89,14 +113,13 @@ export class SocketManager {
    * Disconnect from server
    */
   disconnect(): void {
-    if (this.isWebPlatform) {
-      return;
-    }
     if (this.socket) {
+      console.log('[SocketManager] Disconnecting...');
       this.socket.disconnect();
       this.socket = null;
     }
-    this.isConnecting = false;
+    this.reconnectCount = 0;
+    this.setConnectionState('disconnected');
   }
 
   /**
@@ -114,27 +137,69 @@ export class SocketManager {
   }
 
   /**
+   * Get socket instance
+   */
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  /**
+   * Get connection state
+   */
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  /**
+   * Subscribe to connection state changes
+   */
+  onStateChange(listener: (state: ConnectionState) => void): () => void {
+    this.stateListeners.add(listener);
+    // Return unsubscribe function
+    return () => {
+      this.stateListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Update connection state and notify listeners
+   */
+  private setConnectionState(state: ConnectionState): void {
+    if (this.connectionState === state) return;
+
+    this.connectionState = state;
+    console.log(`[SocketManager] State changed: ${state}`);
+
+    // Notify all listeners
+    this.stateListeners.forEach((listener) => {
+      try {
+        listener(state);
+      } catch (error) {
+        console.error('[SocketManager] Error in state listener:', error);
+      }
+    });
+  }
+
+  /**
    * Emit event to server
    */
-  emit<K extends keyof SocketEvents>(event: K, data: Parameters<SocketEvents[K]>[0]): void {
-    if (this.isWebPlatform) {
-      console.warn('[SocketManager] emit() not available on Web platform');
-      return;
-    }
+  emit<K extends keyof SocketEvents>(event: K, data: Parameters<SocketEvents[K]>[0], callback?: (response: any) => void): void {
     if (!this.socket?.connected) {
       console.error('[SocketManager] Cannot emit, not connected');
       return;
     }
-    this.socket.emit(event, data);
+    
+    if (callback) {
+      this.socket.emit(event, data, callback);
+    } else {
+      this.socket.emit(event, data);
+    }
   }
 
   /**
    * Listen to event from server
    */
   on<K extends keyof SocketEvents>(event: K, handler: SocketEvents[K]): void {
-    if (this.isWebPlatform) {
-      return;
-    }
     if (!this.socket) {
       console.error('[SocketManager] Cannot listen, socket not initialized');
       return;
