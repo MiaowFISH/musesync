@@ -205,7 +205,6 @@ export class MusicService {
         album: albumData.name || '',
         albumArt,
         duration: Math.floor((song.dt || 0) / 1000),
-        lyrics: '', // TODO: Fetch lyrics separately if needed
       };
 
       // Cache for 24 hours
@@ -225,6 +224,75 @@ export class MusicService {
         error: {
           code: API_ERROR_CODES.NETEASE_API_ERROR,
           message: error instanceof Error ? error.message : 'Failed to get song detail',
+        },
+      };
+    }
+  }
+
+  /**
+   * Get lyrics for a track
+   * Cache TTL: 24 hours
+   */
+  async getLyrics(trackId: string): Promise<ApiResponse<{ lrc: string; tlyric?: string }>> {
+    try {
+      // Validate track ID
+      if (!/^\d+$/.test(trackId)) {
+        return {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.INVALID_TRACK_ID,
+            message: 'Invalid track ID format',
+          },
+        };
+      }
+
+      // Check cache
+      const cacheKey = `lyrics:${trackId}`;
+      const cached = this.getFromCache<{ lrc: string; tlyric?: string }>(cacheKey);
+      if (cached) {
+        return {
+          success: true,
+          data: cached.data,
+          cached: true,
+          cacheExpiry: cached.expiry,
+        };
+      }
+
+      // Call NetEase API
+      const response = await NeteaseCloudMusicApi.lyric({ id: trackId });
+
+      if (response.body.code !== 200) {
+        return {
+          success: false,
+          error: {
+            code: API_ERROR_CODES.NETEASE_API_ERROR,
+            message: 'Failed to get lyrics',
+          },
+        };
+      }
+
+      const lrc = response.body.lrc?.lyric || '';
+      const tlyric = response.body.tlyric?.lyric || undefined;
+
+      const result = { lrc, tlyric };
+
+      // Cache for 24 hours
+      const cacheExpiry = Date.now() + 86400000;
+      this.setCache(cacheKey, result, cacheExpiry);
+
+      return {
+        success: true,
+        data: result,
+        cached: false,
+        cacheExpiry,
+      };
+    } catch (error) {
+      console.error('[MusicService] Get lyrics error:', error);
+      return {
+        success: false,
+        error: {
+          code: API_ERROR_CODES.NETEASE_API_ERROR,
+          message: error instanceof Error ? error.message : 'Failed to get lyrics',
         },
       };
     }

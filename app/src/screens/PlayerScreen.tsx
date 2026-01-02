@@ -1,7 +1,7 @@
 // app/src/screens/PlayerScreen.tsx
 // Music player screen with playback controls
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -37,6 +38,10 @@ export default function PlayerScreen() {
   const [isLoadingTrack, setIsLoadingTrack] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [trialInfo, setTrialInfo] = useState<{ isTrial: boolean; start: number; end: number; duration: number } | null>(null);
+  const [lyrics, setLyrics] = useState<Array<{ time: number; text: string }>>([]);
+  const [currentLyricIndex, setCurrentLyricIndex] = useState(-1);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const lyricsScrollRef = useRef<ScrollView>(null);
   
   const {
     isPlaying,
@@ -145,6 +150,9 @@ export default function PlayerScreen() {
       if (audioResponse.data.audioUrl) {
         await play(trackData, audioResponse.data.audioUrl);
       }
+
+      // Load lyrics
+      loadLyrics(trackId);
     } catch (err) {
       console.error('[PlayerScreen] Load track error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load track');
@@ -152,6 +160,82 @@ export default function PlayerScreen() {
       setIsLoadingTrack(false);
     }
   };
+
+  /**
+   * Load and parse lyrics
+   */
+  const loadLyrics = async (trackId: string) => {
+    try {
+      const response = await musicApi.getLyrics(trackId);
+      if (response.success && response.data && response.data.lrc) {
+        const parsedLyrics = parseLrc(response.data.lrc);
+        setLyrics(parsedLyrics);
+        console.log(`[PlayerScreen] Loaded ${parsedLyrics.length} lyrics lines`);
+      } else {
+        setLyrics([]);
+      }
+    } catch (err) {
+      console.error('[PlayerScreen] Load lyrics error:', err);
+      setLyrics([]);
+    }
+  };
+
+  /**
+   * Parse LRC format lyrics
+   */
+  const parseLrc = (lrc: string): Array<{ time: number; text: string }> => {
+    const lines = lrc.split('\n');
+    const result: Array<{ time: number; text: string }> = [];
+
+    for (const line of lines) {
+      // Match [mm:ss.xx] or [mm:ss]
+      const match = line.match(/\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/);
+      if (match) {
+        const minutes = parseInt(match[1], 10);
+        const seconds = parseInt(match[2], 10);
+        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0'), 10) : 0;
+        const time = minutes * 60 + seconds + milliseconds / 1000;
+        const text = match[4].trim();
+        
+        if (text) {
+          result.push({ time, text });
+        }
+      }
+    }
+
+    // Sort by time
+    result.sort((a, b) => a.time - b.time);
+    return result;
+  };
+
+  /**
+   * Sync lyrics with playback position
+   */
+  useEffect(() => {
+    if (lyrics.length === 0) return;
+
+    // Find current lyric line
+    let index = -1;
+    for (let i = 0; i < lyrics.length; i++) {
+      if (position >= lyrics[i].time) {
+        index = i;
+      } else {
+        break;
+      }
+    }
+
+    if (index !== currentLyricIndex) {
+      setCurrentLyricIndex(index);
+      
+      // Auto-scroll to current lyric
+      if (showLyrics && index >= 0 && lyricsScrollRef.current) {
+        lyricsScrollRef.current.scrollTo({
+          y: index * 40, // Approximate line height
+          animated: true,
+        });
+      }
+    }
+  }, [position, lyrics, showLyrics]);
 
   /**
    * Toggle play/pause
@@ -271,20 +355,71 @@ export default function PlayerScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Album Art */}
-      <View style={styles.albumArtContainer}>
-        {track.albumArt ? (
-          <Image
-            source={{ uri: track.albumArt }}
-            style={[styles.albumArt, { backgroundColor: theme.colors.surface }]}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.albumArt, styles.placeholderArt, { backgroundColor: theme.colors.surface }]}>
-            <Text style={[styles.placeholderIcon, { color: theme.colors.textSecondary }]}>♪</Text>
-          </View>
-        )}
-      </View>
+      {/* Album Art or Lyrics */}
+      {showLyrics && lyrics.length > 0 ? (
+        <View style={styles.lyricsContainer}>
+          <ScrollView 
+            ref={lyricsScrollRef}
+            style={styles.lyricsScroll}
+            contentContainerStyle={styles.lyricsContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {lyrics.map((line, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={() => seek(line.time)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.lyricLine,
+                    { color: theme.colors.textSecondary },
+                    index === currentLyricIndex && {
+                      color: theme.colors.primary,
+                      fontSize: 18,
+                      fontWeight: '600',
+                    },
+                  ]}
+                >
+                  {line.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity
+            style={[styles.lyricsToggle, { backgroundColor: theme.colors.surface }]}
+            onPress={() => setShowLyrics(false)}
+          >
+            <Text style={[styles.lyricsToggleText, { color: theme.colors.primary }]}>
+              显示封面
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.albumArtContainer}>
+          {track.albumArt ? (
+            <Image
+              source={{ uri: track.albumArt }}
+              style={[styles.albumArt, { backgroundColor: theme.colors.surface }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.albumArt, styles.placeholderArt, { backgroundColor: theme.colors.surface }]}>
+              <Text style={[styles.placeholderIcon, { color: theme.colors.textSecondary }]}>♪</Text>
+            </View>
+          )}
+          {lyrics.length > 0 && (
+            <TouchableOpacity
+              style={[styles.lyricsToggle, { backgroundColor: theme.colors.surface }]}
+              onPress={() => setShowLyrics(true)}
+            >
+              <Text style={[styles.lyricsToggleText, { color: theme.colors.primary }]}>
+                显示歌词
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Track Info */}
       <View style={styles.trackInfo}>
@@ -417,6 +552,36 @@ const styles = StyleSheet.create({
   albumArtContainer: {
     alignItems: 'center',
     marginBottom: 32,
+    position: 'relative',
+  },
+  lyricsContainer: {
+    flex: 1,
+    marginBottom: 32,
+    position: 'relative',
+  },
+  lyricsScroll: {
+    flex: 1,
+  },
+  lyricsContent: {
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
+  lyricLine: {
+    fontSize: 16,
+    lineHeight: 40,
+    textAlign: 'center',
+    marginVertical: 4,
+  },
+  lyricsToggle: {
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  lyricsToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   albumArt: {
     width: ALBUM_ART_SIZE,

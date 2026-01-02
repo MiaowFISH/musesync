@@ -118,6 +118,26 @@ export class MusicApi {
   }
 
   /**
+   * Get lyrics
+   */
+  async getLyrics(trackId: string): Promise<ApiResponse<{ lrc: string; tlyric?: string }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/music/lyrics/${trackId}`);
+      const data: ApiResponse<{ lrc: string; tlyric?: string }> = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[MusicApi] Get lyrics error:', error);
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: error instanceof Error ? error.message : 'Network request failed',
+        },
+      };
+    }
+  }
+
+  /**
    * Check service health
    */
   async checkHealth(): Promise<{ status: string; cache?: any; timestamp?: string }> {

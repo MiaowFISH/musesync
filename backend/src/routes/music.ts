@@ -94,6 +94,28 @@ router.get('/audio/:id', audioRateLimiter, async (req: Request, res: Response) =
 });
 
 /**
+ * GET /api/music/lyrics/:id
+ * Get lyrics for a track
+ * Rate limit: 30 req/min
+ */
+router.get('/lyrics/:id', detailRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await musicService.getLyrics(id);
+    res.json(result);
+  } catch (error) {
+    console.error('[MusicRoute] Lyrics error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error',
+      },
+    });
+  }
+});
+
+/**
  * POST /api/music/batch/audio
  * Get audio URLs for multiple tracks
  * Rate limit: 5 req/min
