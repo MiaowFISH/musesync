@@ -1,335 +1,216 @@
 // app/src/services/audio/AudioService.ts
-// Web Audio API service for Web platform (React Native Web compatible)
+// Unified audio service that switches between Web and Native implementations
 
 import { Platform } from 'react-native';
 import type { Track } from '@shared/types/entities';
-import { AUDIO_CONFIG } from '@shared/constants';
+import { WebAudioService } from './WebAudioService';
+import { NativeAudioService } from './NativeAudioService';
 
 /**
- * Audio Service for Web platform
- * Uses Web Audio API with MediaElement for playback
+ * Unified Audio Service Interface
+ * Automatically selects the appropriate implementation based on platform
  */
 export class AudioService {
-  private audioElement: HTMLAudioElement | null = null;
-  private audioContext: AudioContext | null = null;
-  private sourceNode: MediaElementAudioSourceNode | null = null;
-  private gainNode: GainNode | null = null;
-  private currentTrack: Track | null = null;
-  private progressInterval: NodeJS.Timeout | null = null;
-  private onProgressCallback: ((position: number) => void) | null = null;
-  private onEndCallback: (() => void) | null = null;
-  private isInitialized = false;
+  private implementation: WebAudioService | NativeAudioService;
+
+  constructor() {
+    // Select implementation based on platform
+    if (Platform.OS === 'web') {
+      this.implementation = new WebAudioService();
+      console.log('[AudioService] Using WebAudioService for web platform');
+    } else {
+      this.implementation = new NativeAudioService();
+      console.log('[AudioService] Using NativeAudioService for native platform');
+    }
+  }
 
   /**
-   * Initialize Web Audio API
-   * Must be called after user gesture (e.g., on first play button click)
+   * Initialize audio service
+   * Must be called before using any player functions
    */
   async initialize(): Promise<void> {
-    if (Platform.OS !== 'web') {
-      console.warn('[AudioService] Web Audio API only available on web platform');
-      return;
-    }
-
-    if (this.isInitialized) {
-      return;
-    }
-
-    try {
-      // Create audio element
-      this.audioElement = document.createElement('audio');
-      this.audioElement.crossOrigin = 'anonymous';
-      
-      // Setup audio context
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Create source node from audio element
-      this.sourceNode = this.audioContext.createMediaElementSource(this.audioElement);
-      
-      // Create gain node for volume control
-      this.gainNode = this.audioContext.createGain();
-      
-      // Connect: source -> gain -> destination
-      this.sourceNode.connect(this.gainNode);
-      this.gainNode.connect(this.audioContext.destination);
-      
-      // Setup event listeners
-      this.audioElement.addEventListener('ended', () => {
-        this.stopProgressTracking();
-        if (this.onEndCallback) {
-          this.onEndCallback();
-        }
-      });
-
-      this.audioElement.addEventListener('error', (e) => {
-        console.error('[AudioService] Playback error:', e);
-        this.stopProgressTracking();
-      });
-
-      this.isInitialized = true;
-      console.log('[AudioService] Initialized successfully');
-    } catch (error) {
-      console.error('[AudioService] Initialization failed:', error);
-      throw error;
-    }
+    return this.implementation.initialize();
   }
 
   /**
    * Load and play a track
    */
   async play(track: Track, audioUrl: string): Promise<void> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
-    if (!this.audioElement) {
-      throw new Error('Audio element not initialized');
-    }
-
-    try {
-      // Resume audio context if suspended (required on iOS Safari)
-      if (this.audioContext?.state === 'suspended') {
-        await this.audioContext.resume();
-      }
-
-      // Load new track
-      this.currentTrack = track;
-      this.audioElement.src = audioUrl;
-      await this.audioElement.play();
-      
-      this.startProgressTracking();
-      console.log('[AudioService] Playing:', track.title);
-    } catch (error) {
-      console.error('[AudioService] Play error:', error);
-      throw error;
-    }
+    return this.implementation.play(track, audioUrl);
   }
 
   /**
    * Pause playback
    */
   pause(): void {
-    if (!this.audioElement || !this.isInitialized) {
-      console.warn('[AudioService] Audio element not initialized');
-      return;
+    if (Platform.OS === 'web') {
+      this.implementation.pause();
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).pause();
     }
-
-    this.audioElement.pause();
-    this.stopProgressTracking();
-    console.log('[AudioService] Paused');
   }
 
   /**
    * Resume playback
    */
   async resume(): Promise<void> {
-    if (!this.audioElement || !this.isInitialized) {
-      throw new Error('Audio element not initialized. Please load a track first.');
-    }
-
-    try {
-      // Resume audio context if suspended
-      if (this.audioContext?.state === 'suspended') {
-        await this.audioContext.resume();
-      }
-
-      await this.audioElement.play();
-      this.startProgressTracking();
-      console.log('[AudioService] Resumed');
-    } catch (error) {
-      console.error('[AudioService] Resume error:', error);
-      throw error;
-    }
+    return this.implementation.resume();
   }
 
   /**
    * Seek to position (seconds)
    */
   seek(positionSeconds: number): void {
-    if (!this.audioElement || !this.isInitialized) {
-      console.warn('[AudioService] Audio element not initialized');
-      return;
+    if (Platform.OS === 'web') {
+      this.implementation.seek(positionSeconds);
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).seek(positionSeconds);
     }
-
-    // Validate position is a finite number
-    if (!Number.isFinite(positionSeconds) || positionSeconds < 0) {
-      console.warn('[AudioService] Invalid seek position:', positionSeconds);
-      return;
-    }
-
-    this.audioElement.currentTime = positionSeconds;
-    console.log('[AudioService] Seeked to:', positionSeconds);
   }
 
   /**
    * Get current position (seconds)
+   * Note: For native platforms, this returns the last known position
+   * For real-time position, use the progress callback
    */
   getPosition(): number {
-    if (!this.audioElement || !this.isInitialized) {
+    if (Platform.OS === 'web') {
+      return (this.implementation as WebAudioService).getPosition();
+    } else {
+      // Native getPosition is async, so we return 0 and rely on progress callbacks
+      // For actual position, the app should use the onProgress callback
       return 0;
     }
-
-    return this.audioElement.currentTime;
   }
 
   /**
    * Get duration (seconds)
+   * Note: For native platforms, this returns 0
+   * Duration should be obtained from track metadata
    */
   getDuration(): number {
-    if (!this.audioElement || !this.isInitialized) {
+    if (Platform.OS === 'web') {
+      return (this.implementation as WebAudioService).getDuration();
+    } else {
+      // Native getDuration is async, return 0 and use track.duration instead
       return 0;
     }
-
-    return this.audioElement.duration || 0;
   }
 
   /**
    * Set volume (0-1)
    */
   setVolume(volume: number): void {
-    if (!this.gainNode || !this.isInitialized) {
-      console.warn('[AudioService] Gain node not initialized');
-      return;
+    if (Platform.OS === 'web') {
+      this.implementation.setVolume(volume);
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).setVolume(volume);
     }
-
-    const clampedVolume = Math.max(AUDIO_CONFIG.MIN_VOLUME, Math.min(AUDIO_CONFIG.MAX_VOLUME, volume));
-    this.gainNode.gain.value = clampedVolume;
-    console.log('[AudioService] Volume set to:', clampedVolume);
   }
 
   /**
    * Set playback rate (for sync)
    */
   setPlaybackRate(rate: number): void {
-    if (!this.audioElement || !this.isInitialized) {
-      console.warn('[AudioService] Audio element not initialized');
-      return;
+    if (Platform.OS === 'web') {
+      this.implementation.setPlaybackRate(rate);
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).setPlaybackRate(rate);
     }
-
-    this.audioElement.playbackRate = rate;
   }
 
   /**
    * Get playback rate
    */
   getPlaybackRate(): number {
-    if (!this.audioElement || !this.isInitialized) {
-      return 1;
-    }
-
-    return this.audioElement.playbackRate;
+    return this.implementation.getPlaybackRate();
   }
 
   /**
    * Check if playing
+   * Note: For native platforms, this is async internally but returns boolean for compatibility
    */
   isPlaying(): boolean {
-    if (!this.audioElement || !this.isInitialized) {
+    if (Platform.OS === 'web') {
+      return (this.implementation as WebAudioService).isPlaying();
+    } else {
+      // Native isPlaying is async, so we return false
+      // The app should track playing state through callbacks
       return false;
     }
-
-    return !this.audioElement.paused && !this.audioElement.ended;
   }
 
   /**
    * Get current track
    */
   getCurrentTrack(): Track | null {
-    return this.currentTrack;
+    return this.implementation.getCurrentTrack();
   }
 
   /**
    * Get audio context for EQ connection
+   * Note: Only available on web platform
    */
   getAudioContext(): AudioContext | null {
-    return this.audioContext;
+    return this.implementation.getAudioContext();
   }
 
   /**
    * Get source node for EQ connection
+   * Note: Only available on web platform
    */
   getSourceNode(): MediaElementAudioSourceNode | null {
-    return this.sourceNode;
+    return this.implementation.getSourceNode();
   }
 
   /**
    * Get gain node for volume control
+   * Note: Only available on web platform
    */
   getGainNode(): GainNode | null {
-    return this.gainNode;
+    return this.implementation.getGainNode();
   }
 
   /**
    * Set progress callback
    */
   onProgress(callback: (position: number) => void): void {
-    this.onProgressCallback = callback;
+    this.implementation.onProgress(callback);
   }
 
   /**
    * Set end callback
    */
   onEnd(callback: () => void): void {
-    this.onEndCallback = callback;
-  }
-
-  /**
-   * Start progress tracking (100ms interval)
-   */
-  private startProgressTracking(): void {
-    this.stopProgressTracking();
-
-    this.progressInterval = setInterval(() => {
-      if (this.onProgressCallback && this.audioElement) {
-        this.onProgressCallback(this.audioElement.currentTime);
-      }
-    }, 100);
-  }
-
-  /**
-   * Stop progress tracking
-   */
-  private stopProgressTracking(): void {
-    if (this.progressInterval) {
-      clearInterval(this.progressInterval);
-      this.progressInterval = null;
-    }
+    this.implementation.onEnd(callback);
   }
 
   /**
    * Stop playback and reset
    */
   stop(): void {
-    this.pause();
-    this.seek(0);
-    this.currentTrack = null;
+    if (Platform.OS === 'web') {
+      this.implementation.stop();
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).stop();
+    }
   }
 
   /**
    * Clean up resources
    */
   dispose(): void {
-    this.stop();
-    this.stopProgressTracking();
-
-    if (this.sourceNode) {
-      this.sourceNode.disconnect();
-      this.sourceNode = null;
+    if (Platform.OS === 'web') {
+      this.implementation.dispose();
+    } else {
+      // Native implementation is async but we keep interface sync for compatibility
+      (this.implementation as NativeAudioService).dispose();
     }
-
-    if (this.gainNode) {
-      this.gainNode.disconnect();
-      this.gainNode = null;
-    }
-
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
-
-    this.audioElement = null;
-    this.onProgressCallback = null;
-    this.onEndCallback = null;
-    this.isInitialized = false;
   }
 }
 

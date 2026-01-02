@@ -9,7 +9,7 @@ import { preferencesStorage } from '../services/storage/PreferencesStorage';
 
 export const useTheme = (): Theme => {
   const systemColorScheme = useColorScheme();
-  const preferences = usePreferencesStore((state) => state.preferences);
+  const preferences = usePreferencesStore().preferences;
 
   const themeMode = preferences?.theme || 'system';
   const effectiveMode =
@@ -47,7 +47,7 @@ export const useThemeManager = () => {
       }
     };
     loadTheme();
-  }, []);
+  }, [preferences, setPreferences]);
 
   /**
    * Set theme and persist to storage

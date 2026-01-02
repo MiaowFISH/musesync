@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useTheme, useThemeManager } from '../hooks/useTheme';
+import { useThemeManager } from '../hooks/useTheme';
 import { preferencesStorage } from '../services/storage/PreferencesStorage';
 import { updateApiBaseUrl } from '../services/api/MusicApi';
 import { updateSocketManagerUrl } from '../services/sync/SocketManager';
@@ -21,7 +21,7 @@ import { toast } from '../components/common/Toast';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
-  const themeColors = useTheme(); // useTheme returns Theme object with colors, spacing, etc.
+  // const themeColors = useTheme();
   const { theme, setTheme, themeColors: effectiveTheme } = useThemeManager();
   
   const [apiUrl, setApiUrl] = useState('http://localhost:3000');
@@ -95,7 +95,7 @@ export default function SettingsScreen() {
             try {
               await preferencesStorage.clear();
               setApiUrl('http://localhost:3000');
-              setTheme('auto');
+              setTheme('system');
               toast.success('设置已重置');
             } catch (error) {
               console.error('[SettingsScreen] Failed to reset settings:', error);
@@ -107,13 +107,19 @@ export default function SettingsScreen() {
     );
   };
 
+  const timeoutSignal = (ms: number) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  };
+
   const handleTestConnection = async () => {
     try {
       const url = apiUrl.trim();
       const response = await fetch(`${url}/api/health`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        signal: timeoutSignal(5000),
       });
 
       if (response.ok) {
@@ -133,7 +139,7 @@ export default function SettingsScreen() {
   };
 
   const themeOptions = [
-    { value: 'auto' as const, label: '跟随系统' },
+    { value: 'system' as const, label: '跟随系统' },
     { value: 'light' as const, label: '浅色模式' },
     { value: 'dark' as const, label: '深色模式' },
   ];

@@ -42,9 +42,9 @@ export function usePlayer(): UsePlayerResult {
   const [isLoading, setIsLoading] = useState(false);
   const isInitializedRef = useRef(false);
 
-  // Initialize audio service on mount (Web only)
+  // Initialize audio service on mount
   useEffect(() => {
-    if (Platform.OS === 'web' && !isInitializedRef.current) {
+    if (!isInitializedRef.current) {
       // Don't try to initialize early - AudioContext requires user gesture
       // It will be initialized on first play() call
       console.log('[usePlayer] AudioService will initialize on first user interaction');
@@ -69,10 +69,10 @@ export function usePlayer(): UsePlayerResult {
    * Play a track
    */
   const play = useCallback(async (track: Track, audioUrl: string) => {
-    if (Platform.OS !== 'web') {
-      setError('Audio playback only supported on Web platform');
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   setError('Audio playback only supported on Web platform');
+    //   return;
+    // }
 
     setIsLoading(true);
     setError(null);
@@ -95,9 +95,9 @@ export function usePlayer(): UsePlayerResult {
    * Pause playback
    */
   const pause = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     audioService.pause();
     store.setPlaying(false);
@@ -107,9 +107,9 @@ export function usePlayer(): UsePlayerResult {
    * Resume playback
    */
   const resume = useCallback(async () => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     setError(null);
 
@@ -140,9 +140,9 @@ export function usePlayer(): UsePlayerResult {
    * Stop playback
    */
   const stop = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     audioService.stop();
     store.reset();
@@ -152,9 +152,9 @@ export function usePlayer(): UsePlayerResult {
    * Seek to position
    */
   const seek = useCallback((positionSeconds: number) => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     audioService.seek(positionSeconds);
     store.setPosition(positionSeconds);
@@ -164,9 +164,9 @@ export function usePlayer(): UsePlayerResult {
    * Set volume
    */
   const setVolume = useCallback((volume: number) => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     audioService.setVolume(volume);
     store.setVolume(volume);
@@ -176,9 +176,9 @@ export function usePlayer(): UsePlayerResult {
    * Set playback rate (for sync)
    */
   const setPlaybackRate = useCallback((rate: number) => {
-    if (Platform.OS !== 'web') {
-      return;
-    }
+    // if (Platform.OS !== 'web') {
+    //   return;
+    // }
 
     audioService.setPlaybackRate(rate);
     store.setPlaybackRate(rate);

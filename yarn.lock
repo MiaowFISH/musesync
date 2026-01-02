@@ -8257,7 +8257,9 @@ __metadata:
     react-native: "npm:0.81.5"
     react-native-safe-area-context: "npm:^5.6.2"
     react-native-screens: "npm:~4.16.0"
+    react-native-track-player: "patch:react-native-track-player@npm%3A4.1.2#~/.yarn/patches/react-native-track-player-npm-4.1.2-b3ddb100d7.patch"
     react-native-web: "npm:^0.21.0"
+    shaka-player: "npm:^4.16.12"
     socket.io-client: "npm:^4.8.3"
     typescript: "npm:~5.9.3"
   languageName: unknown
@@ -9304,6 +9306,40 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-track-player@npm:4.1.2":
+  version: 4.1.2
+  resolution: "react-native-track-player@npm:4.1.2"
+  peerDependencies:
+    react: ">=16.8.6"
+    react-native: ">=0.60.0-rc.2"
+    react-native-windows: ">=0.63.0"
+    shaka-player: ^4.7.9
+  peerDependenciesMeta:
+    react-native-windows:
+      optional: true
+    shaka-player:
+      optional: true
+  checksum: 10c0/8f4a4f1bd9568c2f2ab8a41b54304bd426d0cb98167d643315f85304ac0983eec6d5b4372c343fbcc398a993648ad263a5ffdd0ea5bc9d966d063afb9705dc04
+  languageName: node
+  linkType: hard
+
+"react-native-track-player@patch:react-native-track-player@npm%3A4.1.2#~/.yarn/patches/react-native-track-player-npm-4.1.2-b3ddb100d7.patch":
+  version: 4.1.2
+  resolution: "react-native-track-player@patch:react-native-track-player@npm%3A4.1.2#~/.yarn/patches/react-native-track-player-npm-4.1.2-b3ddb100d7.patch::version=4.1.2&hash=571024"
+  peerDependencies:
+    react: ">=16.8.6"
+    react-native: ">=0.60.0-rc.2"
+    react-native-windows: ">=0.63.0"
+    shaka-player: ^4.7.9
+  peerDependenciesMeta:
+    react-native-windows:
+      optional: true
+    shaka-player:
+      optional: true
+  checksum: 10c0/fa3d96ea78207bd4e5dfded6e3cddaa079e7270ab6dcc06c786b933230fd5b09370c64fdd19c0ebbedb949b26f817da4a57da83f7b66881db98c3229559419d3
+  languageName: node
+  linkType: hard
+
 "react-native-web@npm:^0.21.0":
   version: 0.21.2
   resolution: "react-native-web@npm:0.21.2"
@@ -10045,6 +10081,13 @@ __metadata:
   version: 2.2.0
   resolution: "sf-symbols-typescript@npm:2.2.0"
   checksum: 10c0/3f3bbf33aaad19e619d6f169899b39e9fe9c5fd21f0d6d511100e36887606ad349109ddc6ff82933f2b8cbf437dd7105c2ae6b0059b291dc47f143b30c2074cc
+  languageName: node
+  linkType: hard
+
+"shaka-player@npm:^4.16.12":
+  version: 4.16.12
+  resolution: "shaka-player@npm:4.16.12"
+  checksum: 10c0/158296259cec4404004d041fe921adc4c9486da3351be81ccccc1bc4e5c479b1298301b00b2767f0b0b7e847d90d52e47985b79d2919706aef1e692a58351643
   languageName: node
   linkType: hard
 

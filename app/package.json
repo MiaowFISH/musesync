@@ -4,7 +4,8 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
+    "android": "expo run:android --variant debugOptimized",
+    "android:release": "expo run:android --variant release",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },
@@ -24,7 +25,9 @@
     "react-native": "0.81.5",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
+    "react-native-track-player": "patch:react-native-track-player@npm%3A4.1.2#~/.yarn/patches/react-native-track-player-npm-4.1.2-b3ddb100d7.patch",
     "react-native-web": "^0.21.0",
+    "shaka-player": "^4.16.12",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {

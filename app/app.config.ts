@@ -36,7 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
-    './expo-plugins/withAndroidManifest',
+    // './expo-plugins/withAndroidManifest',
     './expo-plugins/withGradleProperties',
   ],
 });
