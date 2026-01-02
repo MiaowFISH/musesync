@@ -1,0 +1,66 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  repositories {
+    // 阿里云镜像
+    maven { url 'https://maven.aliyun.com/repository/public' }
+    maven { url 'https://maven.aliyun.com/repository/google' }
+    maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    maven { url 'https://maven.aliyun.com/repository/central' }
+
+    // 华为云镜像
+    maven { url 'https://repo.huaweicloud.com/repository/maven/' }
+
+    // 腾讯云镜像
+    maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+
+    // 网易镜像
+    maven { url 'https://mirrors.163.com/maven/repository/maven-public/' }
+
+    // 首都在线
+    maven { url 'https://maven.oscs.oschina.net/content/groups/public/' }
+
+    // 保留Google仓库
+    google()
+
+    // 保留中央仓库
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+  }
+}
+
+allprojects {
+  repositories {
+    // 阿里云镜像
+    maven { url 'https://maven.aliyun.com/repository/public' }
+    maven { url 'https://maven.aliyun.com/repository/google' }
+    maven { url 'https://maven.aliyun.com/repository/central' }
+
+    // 华为云镜像
+    maven { url 'https://repo.huaweicloud.com/repository/maven/' }
+
+    // 腾讯云镜像
+    maven { url 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
+
+    // 网易镜像
+    maven { url 'https://mirrors.163.com/maven/repository/maven-public/' }
+
+    // 首都在线
+    maven { url 'https://maven.oscs.oschina.net/content/groups/public/' }
+
+    // 保留Google仓库
+    google()
+
+    // 保留中央仓库
+    mavenCentral()
+
+    maven { url 'https://www.jitpack.io' }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
