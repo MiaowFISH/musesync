@@ -123,8 +123,7 @@ export class AudioService {
    */
   async resume(): Promise<void> {
     if (!this.audioElement || !this.isInitialized) {
-      console.warn('[AudioService] Audio element not initialized');
-      return;
+      throw new Error('Audio element not initialized. Please load a track first.');
     }
 
     try {

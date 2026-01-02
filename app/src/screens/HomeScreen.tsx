@@ -16,12 +16,14 @@ import { toast } from '../components/common/Toast';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
 import { preferencesStorage } from '../services/storage/PreferencesStorage';
 import { roomHistoryStorage, type RoomHistoryItem } from '../services/storage/RoomHistoryStorage';
+import { useRoomStore } from '../stores';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
 export const HomeScreen: React.FC = () => {
   const { colors, spacing } = useTheme();
   const navigation = useNavigation<NavigationProp>();
+  const roomStore = useRoomStore();
   const [roomCode, setRoomCode] = useState('');
   const [username, setUsername] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -90,6 +92,11 @@ export const HomeScreen: React.FC = () => {
   }, []);
 
   const handleCreateRoom = async () => {
+    if (roomStore.room) {
+      toast.warning('您已在房间内，请先离开当前房间');
+      return;
+    }
+
     if (!username.trim()) {
       toast.error('请输入用户名');
       return;
@@ -145,6 +152,11 @@ export const HomeScreen: React.FC = () => {
   };
 
   const handleJoinRoom = async () => {
+    if (roomStore.room) {
+      toast.warning('您已在房间内，请先离开当前房间');
+      return;
+    }
+
     if (!username.trim()) {
       toast.error('请输入用户名');
       return;
@@ -232,7 +244,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 80 }]}
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>🎵 Music Together</Text>
@@ -252,124 +264,152 @@ export const HomeScreen: React.FC = () => {
         />
       </View>
 
-      <Card style={styles.card}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>创建房间</Text>
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          创建一个新房间，邀请朋友一起听歌
-        </Text>
-        <Input
-          placeholder="输入用户名"
-          value={username}
-          onChangeText={setUsername}
-          containerStyle={{ marginTop: spacing.md }}
-        />
-        <Button 
-          title={isCreating ? '创建中...' : '创建房间'}
-          onPress={handleCreateRoom}
-          style={{ marginTop: spacing.sm }}
-          disabled={isCreating || !username.trim()}
-        />
-        
-        {/* Created rooms history */}
-        {createdRooms.length > 0 && (
-          <View style={styles.historySection}>
-            <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
-              最近创建
+      {roomStore.room ? (
+        <Card style={styles.card}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>当前房间</Text>
+          <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+            您已在房间中
+          </Text>
+          <View style={styles.currentRoomInfo}>
+            <Text style={[styles.currentRoomCode, { color: colors.primary }]}>
+              房间代码: {roomStore.room.roomId}
             </Text>
-            {createdRooms.slice(0, 3).map((room) => (
-              <View
-                key={room.roomId}
-                style={[styles.historyItem, { backgroundColor: colors.background }]}
-              >
-                <TouchableOpacity
-                  style={styles.historyItemButton}
-                  onPress={() => setRoomCode(room.roomCode)}
-                >
-                  <Text style={[styles.historyRoomCode, { color: colors.text }]}>
-                    {room.roomCode}
-                  </Text>
-                  <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
-                    {new Date(room.timestamp).toLocaleDateString()}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.historyDeleteButton}
-                  onPress={() => handleRemoveCreatedRoom(room.roomId)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={[styles.historyDeleteText, { color: colors.error }]}>
-                    ✕
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+            <Text style={[styles.currentRoomMembers, { color: colors.textSecondary }]}>
+              {roomStore.room.members.length} 人在线
+            </Text>
           </View>
-        )}
-      </Card>
+          <Button 
+            title="进入房间"
+            onPress={() => navigation.navigate('Room', { 
+              roomId: roomStore.room!.roomId, 
+              room: roomStore.room!,
+              userId: deviceId 
+            })}
+            style={{ marginTop: spacing.md }}
+          />
+        </Card>
+      ) : (
+        <>
+          <Card style={styles.card}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>创建房间</Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              创建一个新房间，邀请朋友一起听歌
+            </Text>
+            <Input
+              placeholder="输入用户名"
+              value={username}
+              onChangeText={setUsername}
+              containerStyle={{ marginTop: spacing.md }}
+            />
+            <Button 
+              title={isCreating ? '创建中...' : '创建房间'}
+              onPress={handleCreateRoom}
+              style={{ marginTop: spacing.sm }}
+              disabled={isCreating || !username.trim()}
+            />
+            
+            {/* Created rooms history */}
+            {createdRooms.length > 0 && (
+              <View style={styles.historySection}>
+                <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
+                  最近创建
+                </Text>
+                {createdRooms.slice(0, 3).map((room) => (
+                  <View
+                    key={room.roomId}
+                    style={[styles.historyItem, { backgroundColor: colors.background }]}
+                  >
+                    <TouchableOpacity
+                      style={styles.historyItemButton}
+                      onPress={() => setRoomCode(room.roomCode)}
+                    >
+                      <Text style={[styles.historyRoomCode, { color: colors.text }]}>
+                        {room.roomCode}
+                      </Text>
+                      <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
+                        {new Date(room.timestamp).toLocaleDateString()}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.historyDeleteButton}
+                      onPress={() => handleRemoveCreatedRoom(room.roomId)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={[styles.historyDeleteText, { color: colors.error }]}>
+                        ✕
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Card>
 
-      <Card style={styles.card}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>加入房间</Text>
-        <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          输入用户名和6位房间代码加入房间
-        </Text>
-        <Input
-          placeholder="输入用户名"
-          value={username}
-          onChangeText={setUsername}
-          containerStyle={{ marginTop: spacing.md }}
-        />
-        <Input
-          placeholder="输入房间代码"
-          value={roomCode}
-          onChangeText={setRoomCode}
-          keyboardType="number-pad"
-          maxLength={6}
-          containerStyle={{ marginTop: spacing.sm }}
-        />
-        <Button 
-          title={isJoining ? '加入中...' : '加入房间'}
-          onPress={handleJoinRoom}
-          disabled={isJoining || roomCode.length !== 6 || !username.trim()}
-          style={{ marginTop: spacing.sm }}
-          variant="secondary"
-        />
-        
-        {/* Joined rooms history */}
-        {joinedRooms.length > 0 && (
-          <View style={styles.historySection}>
-            <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
-              最近加入
+          <Card style={styles.card}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>加入房间</Text>
+            <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
+              输入用户名和6位房间代码加入房间
             </Text>
-            {joinedRooms.slice(0, 3).map((room) => (
-              <View
-                key={room.roomId}
-                style={[styles.historyItem, { backgroundColor: colors.background }]}
-              >
-                <TouchableOpacity
-                  style={styles.historyItemButton}
-                  onPress={() => setRoomCode(room.roomCode)}
-                >
-                  <Text style={[styles.historyRoomCode, { color: colors.text }]}>
-                    {room.roomCode}
-                  </Text>
-                  <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
-                    {new Date(room.timestamp).toLocaleDateString()}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.historyDeleteButton}
-                  onPress={() => handleRemoveJoinedRoom(room.roomId)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={[styles.historyDeleteText, { color: colors.error }]}>
-                    ✕
-                  </Text>
-                </TouchableOpacity>
+            <Input
+              placeholder="输入用户名"
+              value={username}
+              onChangeText={setUsername}
+              containerStyle={{ marginTop: spacing.md }}
+            />
+            <Input
+              placeholder="输入房间代码"
+              value={roomCode}
+              onChangeText={setRoomCode}
+              keyboardType="number-pad"
+              maxLength={6}
+              containerStyle={{ marginTop: spacing.sm }}
+            />
+            <Button 
+              title={isJoining ? '加入中...' : '加入房间'}
+              onPress={handleJoinRoom}
+              disabled={isJoining || roomCode.length !== 6 || !username.trim()}
+              style={{ marginTop: spacing.sm }}
+              variant="secondary"
+            />
+            
+            {/* Joined rooms history */}
+            {joinedRooms.length > 0 && (
+              <View style={styles.historySection}>
+                <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
+                  最近加入
+                </Text>
+                {joinedRooms.slice(0, 3).map((room) => (
+                  <View
+                    key={room.roomId}
+                    style={[styles.historyItem, { backgroundColor: colors.background }]}
+                  >
+                    <TouchableOpacity
+                      style={styles.historyItemButton}
+                      onPress={() => setRoomCode(room.roomCode)}
+                    >
+                      <Text style={[styles.historyRoomCode, { color: colors.text }]}>
+                        {room.roomCode}
+                      </Text>
+                      <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
+                        {new Date(room.timestamp).toLocaleDateString()}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.historyDeleteButton}
+                      onPress={() => handleRemoveJoinedRoom(room.roomId)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={[styles.historyDeleteText, { color: colors.error }]}>
+                        ✕
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        )}
-      </Card>
+            )}
+          </Card>
+        </>
+      )}
 
       <Card style={styles.card}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>单人模式</Text>
@@ -478,6 +518,20 @@ const styles = StyleSheet.create({
   historyDeleteText: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  currentRoomInfo: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+  },
+  currentRoomCode: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  currentRoomMembers: {
+    fontSize: 14,
   },
   footer: {
     marginTop: 40,

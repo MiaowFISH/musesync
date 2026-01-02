@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -18,9 +19,14 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import type { Room, User } from '@shared/types/entities';
 import { socketManager } from '../services/sync/SocketManager';
 import { roomService } from '../services/sync/RoomService';
+import { syncService } from '../services/sync/SyncService';
 import { toast } from '../components/common/Toast';
 import { Button } from '../components/ui/Button';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
+import { usePlayer } from '../hooks/usePlayer';
+import { useRoomStore } from '../stores';
+import { musicApi } from '../services/api/MusicApi';
+import type { Track } from '@shared/types/entities';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Room'>;
 type RoomRouteProp = RouteProp<RootStackParamList, 'Room'>;
@@ -30,9 +36,23 @@ export const RoomScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoomRouteProp>();
   const { roomId, room: initialRoom, userId } = route.params;
+  const { currentTrack, isPlaying, position, pause, resume, seek, play, loadTrack } = usePlayer();
+  const roomStore = useRoomStore();
 
   const [room, setRoom] = useState<Room | null>(initialRoom || null);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
+
+  // Set room in store when entering
+  useEffect(() => {
+    if (initialRoom) {
+      console.log('[RoomScreen] Setting room in store:', initialRoom.roomId);
+      roomStore.setRoom(initialRoom);
+      setRoom(initialRoom);
+    }
+    
+    // Don't clear room when leaving - only clear when explicitly leaving the room
+    // Room state should persist when navigating to Player screen
+  }, [initialRoom]);
 
   useEffect(() => {
     // Listen to connection state changes
@@ -56,6 +76,7 @@ export const RoomScreen: React.FC = () => {
         console.log('[RoomScreen] Member joined:', data);
         if (data.room) {
           setRoom(data.room);
+          roomStore.setRoom(data.room);
         }
         toast.success(`${data.username} 加入了房间`);
       });
@@ -65,6 +86,7 @@ export const RoomScreen: React.FC = () => {
         console.log('[RoomScreen] Member left:', data);
         if (data.room) {
           setRoom(data.room);
+          roomStore.setRoom(data.room);
         }
         
         if (data.newHostId) {
@@ -74,14 +96,127 @@ export const RoomScreen: React.FC = () => {
         }
       });
 
-      // Sync state update
-      socket.on('sync:state', (data: any) => {
-        console.log('[RoomScreen] Sync state updated:', data);
+      // Sync state update - apply to local player
+      socket.on('sync:state', async (data: any) => {
+        console.log('[RoomScreen] Sync state received:', JSON.stringify(data, null, 2));
         if (data.state && room) {
-          setRoom({
-            ...room,
-            syncState: data.state,
+          const syncState = data.state;
+          console.log('[RoomScreen] Sync state details:', {
+            trackId: syncState.trackId,
+            status: syncState.status,
+            position: syncState.seekTime,
+            updatedBy: syncState.updatedBy,
           });
+          
+          const updatedRoom = {
+            ...room,
+            syncState,
+          };
+          setRoom(updatedRoom);
+          roomStore.setRoom(updatedRoom);
+
+          // Don't sync if this is our own update
+          if (data.userId === userId) {
+            console.log('[RoomScreen] Ignoring own sync update (userId match)');
+            return;
+          }
+
+          // Apply sync state to player
+          if (syncState.trackId && syncState.status !== 'stopped') {
+            console.log('[RoomScreen] Current track:', currentTrack?.trackId, 'Sync track:', syncState.trackId);
+            console.log('[RoomScreen] Track comparison:', {
+              currentTrackId: currentTrack?.trackId,
+              syncTrackId: syncState.trackId,
+              typesMatch: typeof currentTrack?.trackId === typeof syncState.trackId,
+              valuesMatch: currentTrack?.trackId === syncState.trackId,
+              stringMatch: String(currentTrack?.trackId) === String(syncState.trackId),
+            });
+            // If we're not playing the same track, load and play it
+            if (!currentTrack || String(currentTrack.trackId) !== String(syncState.trackId)) {
+              console.log('[RoomScreen] Different track, loading:', syncState.trackId);
+              try {
+                // Fetch track details
+                const songResponse = await musicApi.getSongDetail(syncState.trackId);
+                console.log('[RoomScreen] Song detail response:', songResponse);
+                
+                if (songResponse.success && songResponse.data) {
+                  const songDetail = songResponse.data;
+                  console.log('[RoomScreen] Song detail:', {
+                    title: songDetail.title,
+                    artist: songDetail.artist,
+                    duration: songDetail.duration,
+                  });
+                  
+                  // Fetch audio URL
+                  const audioResponse = await musicApi.getAudioUrl(syncState.trackId);
+                  console.log('[RoomScreen] Audio URL response:', audioResponse);
+                  
+                  if (audioResponse.success && audioResponse.data && audioResponse.data.audioUrl) {
+                    const track: Track = {
+                      trackId: syncState.trackId,
+                      title: songDetail.title || 'Unknown Title',
+                      artist: songDetail.artist || 'Unknown Artist',
+                      album: songDetail.album || '',
+                      coverUrl: songDetail.coverUrl || '',
+                      duration: songDetail.duration,
+                      audioUrl: audioResponse.data.audioUrl,
+                      audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+                      quality: audioResponse.data.quality || 'exhigh',
+                      addedAt: Date.now(),
+                    };
+
+                    console.log('[RoomScreen] Track prepared:', {
+                      trackId: track.trackId,
+                      title: track.title,
+                      audioUrl: track.audioUrl ? 'valid' : 'undefined',
+                    });
+
+                    // Play track with audio URL
+                    console.log('[RoomScreen] Playing synced track:', track.title);
+                    await play(track, audioResponse.data.audioUrl);
+                    
+                    // Apply playback state
+                    if (syncState.status === 'playing') {
+                      console.log('[RoomScreen] Seeking to position and resuming:', syncState.seekTime);
+                      seek(syncState.seekTime || 0);
+                      // Already playing from play() call
+                    } else {
+                      console.log('[RoomScreen] Pausing at position:', syncState.seekTime);
+                      seek(syncState.seekTime || 0);
+                      pause();
+                    }
+                    
+                    toast.success(`已同步: ${track.title}`);
+                  } else {
+                    console.error('[RoomScreen] Failed to get audio URL:', audioResponse);
+                    toast.error('无法获取音频链接');
+                  }
+                } else {
+                  console.error('[RoomScreen] Failed to get song details:', songResponse);
+                  toast.error('无法加载歌曲信息');
+                }
+              } catch (error) {
+                console.error('[RoomScreen] Error loading synced track:', error);
+                toast.error('同步失败');
+              }
+            } else if (currentTrack.trackId === syncState.trackId) {
+              // Same track, sync playback state
+              if (syncState.status === 'playing' && !isPlaying) {
+                console.log('[RoomScreen] Syncing: Resume playback');
+                resume();
+                // Sync position if drift > 1 second
+                const timeDrift = Math.abs(position - (syncState.seekTime || 0));
+                console.log('[RoomScreen] Time drift:', timeDrift);
+                if (timeDrift > 1) {
+                  console.log('[RoomScreen] Seeking to:', syncState.seekTime);
+                  seek(syncState.seekTime || 0);
+                }
+              } else if (syncState.status === 'paused' && isPlaying) {
+                console.log('[RoomScreen] Syncing: Pause playback');
+                pause();
+              }
+            }
+          }
         }
       });
 
@@ -90,6 +225,17 @@ export const RoomScreen: React.FC = () => {
         console.error('[RoomScreen] Socket error:', data);
         if (data.message?.includes('not found') || data.message?.includes('不存在')) {
           toast.error('房间已失效，请重新创建');
+          roomStore.clear();
+          navigation.navigate('Home');
+        }
+      });
+
+      // Check if room still exists
+      socket.on('room:error', (data: any) => {
+        console.error('[RoomScreen] Room error:', data);
+        if (data.error?.includes('not found') || data.error?.includes('不存在')) {
+          toast.error('房间已失效');
+          roomStore.clear();
           navigation.navigate('Home');
         }
       });
@@ -102,6 +248,7 @@ export const RoomScreen: React.FC = () => {
         socket.off('member:left');
         socket.off('sync:state');
         socket.off('error');
+        socket.off('room:error');
       }
     };
   }, [room, navigation]);
@@ -127,19 +274,31 @@ export const RoomScreen: React.FC = () => {
       if (room && userId) {
         console.log('[RoomScreen] Leaving room:', roomId, 'userId:', userId);
         await roomService.leaveRoom({ roomId, userId });
+        // Clear room from store when explicitly leaving
+        roomStore.clear();
         toast.success('已离开房间');
       }
       navigation.navigate('Home');
     } catch (error) {
       console.error('[RoomScreen] Leave room error:', error);
       toast.error('离开房间失败');
-      // Still navigate home even if leave fails
+      // Clear room and navigate home even if leave fails
+      roomStore.clear();
       navigation.navigate('Home');
     }
   };
 
   const handleGoToPlayer = () => {
-    navigation.navigate('Search');
+    // If there's a current track playing, go to player
+    if (currentTrack) {
+      navigation.navigate('Player', {
+        trackId: currentTrack.trackId,
+        track: currentTrack,
+      });
+    } else {
+      // Otherwise go to search to select a track
+      navigation.navigate('Search');
+    }
   };
 
   const formatDeviceType = (type: string) => {
@@ -257,7 +416,7 @@ export const RoomScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.content} contentContainerStyle={[styles.contentContainer, { paddingBottom: 80 }]}>
         {/* Room Info Card */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -304,6 +463,46 @@ export const RoomScreen: React.FC = () => {
             </View>
           </View>
         </View>
+
+        {/* Current Track Info */}
+        {currentTrack && (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              正在播放
+            </Text>
+            
+            <View style={styles.trackInfoCard}>
+              {currentTrack.coverUrl ? (
+                <Image
+                  source={{ uri: currentTrack.coverUrl }}
+                  style={styles.trackCover}
+                />
+              ) : (
+                <View style={[styles.trackCover, styles.placeholderCover, { backgroundColor: colors.border }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 24 }}>♪</Text>
+                </View>
+              )}
+              
+              <View style={styles.trackDetails}>
+                <Text style={[styles.trackTitle, { color: colors.text }]} numberOfLines={2}>
+                  {currentTrack.title}
+                </Text>
+                <Text style={[styles.trackArtist, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {currentTrack.artist}
+                </Text>
+                <Text style={[styles.trackStatus, { color: isPlaying ? colors.primary : colors.textSecondary }]}>
+                  {isPlaying ? '▶ 播放中' : '⏸ 已暂停'} · {Math.floor(position)}s / {currentTrack.duration}s
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              title="打开播放器"
+              onPress={handleGoToPlayer}
+              style={styles.openPlayerButton}
+            />
+          </View>
+        )}
 
         {/* Members List */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -472,6 +671,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     paddingVertical: 16,
+  },
+  trackInfoCard: {
+    flexDirection: 'row',
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  trackCover: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  placeholderCover: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trackDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  trackTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  trackArtist: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  trackStatus: {
+    fontSize: 12,
+  },
+  openPlayerButton: {
+    marginTop: 8,
   },
   actionButton: {
     marginTop: 8,

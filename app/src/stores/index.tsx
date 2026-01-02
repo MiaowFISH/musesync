@@ -1,8 +1,12 @@
 // app/src/stores/index.tsx
 // React Context-based state management
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import type { Room, Track, SyncState, User, LocalPreferences } from '@shared/types/entities';
+import { playbackStateStorage } from '../services/storage/PlaybackStateStorage';
+import { roomStateStorage } from '../services/storage/RoomStateStorage';
+import { roomService } from '../services/sync/RoomService';
+import { socketManager } from '../services/sync/SocketManager';
 
 /**
  * Room Store Context
@@ -23,15 +27,78 @@ const RoomContext = createContext<RoomState | undefined>(undefined);
 export function RoomProvider({ children }: { children: ReactNode }) {
   const [room, setRoomState] = useState<Room | null>(null);
   const [isHost, setIsHost] = useState(false);
+  const [isRestored, setIsRestored] = useState(false);
+
+  // Restore room state on mount
+  useEffect(() => {
+    const restoreState = async () => {
+      const savedState = await roomStateStorage.getState();
+      if (savedState && savedState.room) {
+        console.log('[RoomProvider] Found saved room state:', savedState.room.roomId);
+        
+        // Wait for socket connection
+        let retries = 0;
+        const maxRetries = 10;
+        while (!socketManager.getSocket()?.connected && retries < maxRetries) {
+          console.log('[RoomProvider] Waiting for socket connection...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries++;
+        }
+        
+        if (socketManager.getSocket()?.connected) {
+          // Verify room still exists on server
+          const verification = await roomService.verifyRoom(savedState.room.roomId);
+          
+          if (verification.exists) {
+            console.log('[RoomProvider] Room verified, restoring state');
+            setRoomState(savedState.room);
+            setIsHost(savedState.isHost);
+          } else {
+            console.log('[RoomProvider] Room no longer exists, clearing state');
+            await roomStateStorage.clearState();
+          }
+        } else {
+          console.warn('[RoomProvider] Socket not connected, cannot verify room');
+          // Still restore the state, will be verified when connection is established
+          setRoomState(savedState.room);
+          setIsHost(savedState.isHost);
+        }
+      }
+      setIsRestored(true);
+    };
+    restoreState();
+  }, []);
+
+  // Save state when it changes
+  useEffect(() => {
+    if (!isRestored) return;
+    
+    const saveState = async () => {
+      await roomStateStorage.saveState({
+        room,
+        isHost,
+        timestamp: Date.now(),
+      });
+    };
+
+    const timeoutId = setTimeout(saveState, 500);
+    return () => clearTimeout(timeoutId);
+  }, [room, isHost, isRestored]);
 
   const setRoom = useCallback((newRoom: Room | null) => {
     setRoomState(newRoom);
     setIsHost(newRoom?.hostId === newRoom?.members[0]?.userId || false);
+    
+    // Clear storage when leaving room
+    if (newRoom === null) {
+      roomStateStorage.clearState();
+    }
   }, []);
 
   const updateSyncState = useCallback((syncState: SyncState) => {
     setRoomState((prev) => {
       if (!prev) return prev;
+      console.log('[RoomProvider] Updating sync state, version:', syncState.version);
       return { ...prev, syncState };
     });
   }, []);
@@ -62,6 +129,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => {
     setRoomState(null);
     setIsHost(false);
+    roomStateStorage.clearState();
   }, []);
 
   return (
@@ -107,6 +175,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(1);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [isRestored, setIsRestored] = useState(false);
+
+  // Restore playback state on mount
+  useEffect(() => {
+    const restoreState = async () => {
+      const savedState = await playbackStateStorage.getState();
+      if (savedState && savedState.track) {
+        setCurrentTrackState(savedState.track);
+        setPosition(savedState.position);
+        setDuration(savedState.track.duration);
+        // Don't auto-play, just restore the state
+        console.log('[PlayerProvider] Restored playback state:', savedState.track.title);
+      }
+      setIsRestored(true);
+    };
+    restoreState();
+  }, []);
+
+  // Save state when it changes
+  useEffect(() => {
+    if (!isRestored) return; // Don't save during restoration
+    
+    const saveState = async () => {
+      await playbackStateStorage.saveState({
+        track: currentTrack,
+        position,
+        isPlaying,
+        audioUrl: null, // Audio URL expires, will need to re-fetch
+        timestamp: Date.now(),
+      });
+    };
+
+    const timeoutId = setTimeout(saveState, 1000); // Debounce saves
+    return () => clearTimeout(timeoutId);
+  }, [currentTrack, position, isPlaying, isRestored]);
 
   const setPlaying = useCallback((playing: boolean) => setIsPlaying(playing), []);
 

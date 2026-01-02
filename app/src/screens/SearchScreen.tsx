@@ -294,7 +294,7 @@ export default function SearchScreen() {
         data={results}
         renderItem={renderSongItem}
         keyExtractor={(item) => item.trackId}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 80 }]}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
       />

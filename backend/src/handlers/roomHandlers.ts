@@ -73,6 +73,16 @@ export function registerRoomHandlers(socket: Socket) {
         // Start heartbeat
         syncEngine.startHeartbeat(roomId, request.userId, socket.id);
 
+        // Send current sync state to the new member
+        const room = roomManager.getRoom(roomId);
+        if (room && room.syncState) {
+          console.log(`[RoomHandlers] Sending current sync state to ${request.username}:`, room.syncState);
+          socket.emit('sync:state', {
+            userId: room.hostId, // Mark as coming from host
+            state: room.syncState,
+          });
+        }
+
         // Broadcast member joined to other members
         socket.to(roomId).emit('member:joined', {
           userId: request.userId,
@@ -94,6 +104,25 @@ export function registerRoomHandlers(socket: Socket) {
           message: 'Failed to join room',
         },
       });
+    }
+  });
+
+  /**
+   * Handle room:verify event
+   */
+  socket.on('room:verify', (request: { roomId: string }, callback) => {
+    try {
+      console.log(`[RoomHandlers] Verify room ${request.roomId}`);
+      
+      const room = roomManager.getRoom(request.roomId);
+      const exists = !!room;
+      
+      callback({ exists });
+      
+      console.log(`[RoomHandlers] Room ${request.roomId} exists: ${exists}`);
+    } catch (error) {
+      console.error('[RoomHandlers] Error in room:verify:', error);
+      callback({ exists: false, error: 'Verification failed' });
     }
   });
 

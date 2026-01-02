@@ -191,7 +191,10 @@ export const HistoryScreen: React.FC = () => {
             tintColor={theme.colors.primary}
           />
         }
-        contentContainerStyle={history.length === 0 ? styles.emptyList : styles.list}
+        contentContainerStyle={[
+          history.length === 0 ? styles.emptyList : styles.list,
+          { paddingBottom: 80 }
+        ]}
       />
     </View>
   );

@@ -23,6 +23,12 @@ export function registerSyncHandlers(socket: Socket) {
     try {
       console.log(`[SyncHandlers] Play request in room ${request.roomId} from ${request.userId}`);
 
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
       const newSyncState = {
         trackId: request.trackId,
         status: 'playing' as const,
@@ -31,7 +37,7 @@ export function registerSyncHandlers(socket: Socket) {
         playbackRate: request.playbackRate || 1.0,
         volume: request.volume !== undefined ? request.volume : 1.0,
         updatedBy: request.userId,
-        version: 0, // Will be incremented by syncEngine
+        version: request.version !== undefined ? request.version : room.syncState.version,
       };
 
       const result = syncEngine.handleSyncUpdate(
@@ -67,9 +73,13 @@ export function registerSyncHandlers(socket: Socket) {
       const newSyncState = {
         ...room.syncState,
         status: 'paused' as const,
-        seekTime: request.seekTime || room.syncState.seekTime,
+        seekTime: request.seekTime !== undefined ? request.seekTime : room.syncState.seekTime,
         serverTimestamp: Date.now(),
         updatedBy: request.userId,
+        // Keep trackId from current state
+        trackId: room.syncState.trackId,
+        // Use client version if provided, otherwise keep current
+        version: request.version !== undefined ? request.version : room.syncState.version,
       };
 
       const result = syncEngine.handleSyncUpdate(
@@ -107,6 +117,10 @@ export function registerSyncHandlers(socket: Socket) {
         seekTime: request.seekTime,
         serverTimestamp: Date.now(),
         updatedBy: request.userId,
+        // Keep trackId from current state
+        trackId: room.syncState.trackId,
+        // Use client version if provided, otherwise keep current
+        version: request.version !== undefined ? request.version : room.syncState.version,
       };
 
       const result = syncEngine.handleSyncUpdate(

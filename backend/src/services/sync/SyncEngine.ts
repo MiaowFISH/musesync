@@ -12,8 +12,8 @@ import { roomManager } from '../room/RoomManager';
 export class SyncEngine {
   private io: SocketIOServer | null = null;
   private heartbeatTimers: Map<string, NodeJS.Timeout> = new Map();
-  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
-  private readonly MEMBER_TIMEOUT = 60000; // 60 seconds
+  private readonly HEARTBEAT_INTERVAL = 300000; // 5 minutes (increased to avoid false positives)
+  private readonly MEMBER_TIMEOUT = 600000; // 10 minutes
 
   /**
    * Initialize with Socket.IO server
@@ -39,16 +39,17 @@ export class SyncEngine {
     }
 
     // Broadcast to room except the sender
+    const eventData = {
+      userId: syncState.updatedBy,
+      state: syncState,
+    };
+
     if (excludeSocketId) {
-      this.io.to(roomId).except(excludeSocketId).emit('sync:state', {
-        syncState,
-        serverTimestamp: Date.now(),
-      });
+      console.log(`[SyncEngine] Broadcasting sync state to room ${roomId} (except ${excludeSocketId}):`, syncState.status, syncState.trackId);
+      this.io.to(roomId).except(excludeSocketId).emit('sync:state', eventData);
     } else {
-      this.io.to(roomId).emit('sync:state', {
-        syncState,
-        serverTimestamp: Date.now(),
-      });
+      console.log(`[SyncEngine] Broadcasting sync state to room ${roomId}:`, syncState.status, syncState.trackId);
+      this.io.to(roomId).emit('sync:state', eventData);
     }
 
     console.log(`[SyncEngine] Broadcast sync state to room ${roomId}: ${syncState.status}`);
@@ -75,8 +76,11 @@ export class SyncEngine {
 
     const currentState = room.syncState;
 
-    // Last-Write-Wins: Check version number
-    if (newSyncState.version !== undefined && newSyncState.version < currentState.version) {
+    // Last-Write-Wins: Check version number only if client provides version
+    // For new play events (trackId change), ignore version check
+    const isNewTrack = newSyncState.trackId && newSyncState.trackId !== currentState.trackId;
+    
+    if (!isNewTrack && newSyncState.version !== undefined && newSyncState.version < currentState.version) {
       console.warn(
         `[SyncEngine] Rejected stale update from ${userId}: version ${newSyncState.version} < ${currentState.version}`
       );
@@ -88,7 +92,7 @@ export class SyncEngine {
       ...newSyncState,
       serverTimestamp: Date.now(),
       updatedBy: userId,
-      version: currentState.version + 1,
+      version: isNewTrack ? 0 : currentState.version + 1,
     };
 
     const success = roomManager.updateSyncState(roomId, updatedState);

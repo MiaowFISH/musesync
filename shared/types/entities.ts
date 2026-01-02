@@ -29,7 +29,7 @@ export interface Track {
   audioUrl: string;
   audioUrlExpiry: number;
   duration: number; // in milliseconds
-  quality: 'standard' | 'higher' | 'exhigh' | 'lossless';
+  quality: 'standard' | 'higher' | 'exhigh' | 'lossless' | 'hires';
   addedBy?: string; // userId of who added the track
   addedAt: number;
 }

@@ -131,6 +131,32 @@ export class RoomService {
   }
 
   /**
+   * Verify if a room exists
+   */
+  async verifyRoom(roomId: string): Promise<{ exists: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const socket = socketManager.getSocket();
+      if (!socket?.connected) {
+        resolve({ exists: false, error: 'Not connected to server' });
+        return;
+      }
+
+      console.log('[RoomService] Verifying room...', { roomId });
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        resolve({ exists: false, error: 'Request timeout' });
+      }, 5000);
+
+      socket.emit('room:verify', { roomId }, (response: { exists: boolean; error?: string }) => {
+        clearTimeout(timeout);
+        console.log('[RoomService] Room verification result:', response);
+        resolve(response);
+      });
+    });
+  }
+
+  /**
    * Leave current room
    */
   leaveRoom(params: { roomId: string; userId: string }): void {

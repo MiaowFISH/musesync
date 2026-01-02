@@ -99,7 +99,7 @@ export class MusicService {
           title: song.name,
           artist: song.artists?.map((a: any) => a.name).join(', ') || song.ar?.map((a: any) => a.name).join(', ') || 'Unknown',
           album: albumData.name || '',
-          albumArt,
+          coverUrl: albumArt,
           duration: Math.floor((song.duration || song.dt || 0) / 1000),
         };
       });
@@ -203,8 +203,11 @@ export class MusicService {
         title: song.name,
         artist: song.ar?.map((a: any) => a.name).join(', ') || 'Unknown',
         album: albumData.name || '',
-        albumArt,
+        coverUrl: albumArt,
         duration: Math.floor((song.dt || 0) / 1000),
+        fee: song.fee || 0,
+        popularity: song.pop || 0,
+        publishTime: song.publishTime || 0,
       };
 
       // Cache for 24 hours

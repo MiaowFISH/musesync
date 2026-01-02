@@ -23,7 +23,8 @@ export class SyncService {
     seekTime?: number;
     playbackRate?: number;
     volume?: number;
-  }): Promise<{ success: boolean; error?: string }> {
+    version?: number;
+  }): Promise<{ success: boolean; error?: string; currentState?: any }> {
     return new Promise((resolve) => {
       const socket = socketManager.getSocket();
       if (!socket?.connected) {
@@ -38,6 +39,7 @@ export class SyncService {
         seekTime: params.seekTime,
         playbackRate: params.playbackRate,
         volume: params.volume,
+        version: params.version,
       };
 
       console.log('[SyncService] Emitting play event...', {
@@ -71,7 +73,8 @@ export class SyncService {
     roomId: string;
     userId: string;
     seekTime: number;
-  }): Promise<{ success: boolean; error?: string }> {
+    version?: number;
+  }): Promise<{ success: boolean; error?: string; currentState?: any }> {
     return new Promise((resolve) => {
       const socket = socketManager.getSocket();
       if (!socket?.connected) {
@@ -83,6 +86,7 @@ export class SyncService {
         roomId: params.roomId,
         userId: params.userId,
         seekTime: params.seekTime,
+        version: params.version,
       };
 
       console.log('[SyncService] Emitting pause event...', { seekTime: params.seekTime });
@@ -113,7 +117,8 @@ export class SyncService {
     roomId: string;
     userId: string;
     seekTime: number;
-  }): Promise<{ success: boolean; error?: string }> {
+    version?: number;
+  }): Promise<{ success: boolean; error?: string; currentState?: any }> {
     return new Promise((resolve) => {
       const socket = socketManager.getSocket();
       if (!socket?.connected) {
@@ -125,6 +130,7 @@ export class SyncService {
         roomId: params.roomId,
         userId: params.userId,
         seekTime: params.seekTime,
+        version: params.version,
       };
 
       console.log('[SyncService] Emitting seek event...', { seekTime: params.seekTime });

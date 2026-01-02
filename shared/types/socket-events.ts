@@ -72,18 +72,21 @@ export interface SyncPlayRequest {
   seekTime?: number;
   playbackRate?: number;
   volume?: number;
+  version?: number; // Client's current version
 }
 
 export interface SyncPauseRequest {
   roomId: string;
   userId: string;
   seekTime: number;
+  version?: number; // Client's current version
 }
 
 export interface SyncSeekRequest {
   roomId: string;
   userId: string;
   seekTime: number;
+  version?: number; // Client's current version
 }
 
 export interface SyncNextRequest {

@@ -18,8 +18,13 @@ import { useTheme } from '../hooks/useTheme';
 import { usePlayer } from '../hooks/usePlayer';
 import { musicApi } from '../services/api/MusicApi';
 import { historyStorage } from '../services/storage/HistoryStorage';
+import { preferencesStorage } from '../services/storage/PreferencesStorage';
+import { playbackStateStorage } from '../services/storage/PlaybackStateStorage';
+import { syncService } from '../services/sync/SyncService';
 import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
+import { useRoomStore } from '../stores';
+import { PlayIcon } from '../components/common/PlayIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = Math.min(SCREEN_WIDTH - 64, 320);
@@ -34,6 +39,8 @@ export default function PlayerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const theme = useTheme();
   const { trackId, track: initialTrack } = (route.params as RouteParams) || {};
+  const roomStore = useRoomStore();
+  const [deviceId, setDeviceId] = useState<string>('');
   
   const [track, setTrack] = useState<Track | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -46,6 +53,7 @@ export default function PlayerScreen() {
   const [showLyrics, setShowLyrics] = useState(false);
   const lyricsScrollRef = useRef<ScrollView>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const versionRef = useRef<number>(0); // Track latest version for sync operations
   
   const {
     isPlaying,
@@ -60,6 +68,22 @@ export default function PlayerScreen() {
     error: playerError,
     isLoading: isPlayerLoading,
   } = usePlayer();
+
+  // Load device ID on mount
+  useEffect(() => {
+    const loadDeviceId = async () => {
+      const id = await preferencesStorage.getDeviceId();
+      setDeviceId(id);
+      console.log('[PlayerScreen] Loaded device ID:', id);
+    };
+    loadDeviceId();
+    
+    // Initialize version ref from room state
+    if (roomStore.room?.syncState?.version !== undefined) {
+      versionRef.current = roomStore.room.syncState.version;
+      console.log('[PlayerScreen] Initialized version ref:', versionRef.current);
+    }
+  }, [roomStore.room?.syncState?.version]);
 
   /**
    * Load track details and audio URL
@@ -88,8 +112,11 @@ export default function PlayerScreen() {
           title: initialTrack.title,
           artist: initialTrack.artist,
           album: initialTrack.album || '',
-          albumArt: initialTrack.albumArt || '',
+          coverUrl: initialTrack.coverUrl || '',
           duration: initialTrack.duration,
+          audioUrl: '',
+          audioUrlExpiry: 0,
+          quality: 'exhigh',
           addedBy: '',
           addedAt: Date.now(),
         };
@@ -106,8 +133,11 @@ export default function PlayerScreen() {
           title: detail.title,
           artist: detail.artist,
           album: detail.album,
-          albumArt: detail.albumArt,
+          coverUrl: detail.coverUrl,
           duration: detail.duration,
+          audioUrl: '',
+          audioUrlExpiry: 0,
+          quality: 'exhigh',
           addedBy: '',
           addedAt: Date.now(),
         };
@@ -157,6 +187,51 @@ export default function PlayerScreen() {
       // Auto-play
       if (audioResponse.data.audioUrl) {
         await play(trackData, audioResponse.data.audioUrl);
+        
+        // Restore saved position if this is the same track
+        let restoredPosition = 0;
+        try {
+          const savedState = await playbackStateStorage.getState();
+          if (savedState && savedState.track && savedState.track.trackId === trackData.trackId && savedState.position > 0) {
+            console.log('[PlayerScreen] Restoring saved position:', savedState.position);
+            restoredPosition = savedState.position;
+            seek(savedState.position);
+            // Resume playback if it was playing
+            if (savedState.isPlaying) {
+              await resume();
+            } else {
+              pause();
+            }
+          }
+        } catch (restoreErr) {
+          console.error('[PlayerScreen] Failed to restore position:', restoreErr);
+        }
+        
+        // Send sync event if in room
+        if (roomStore.room && deviceId) {
+          console.log('[PlayerScreen] Sending initial play sync event to room:', roomStore.room.roomId, 'version:', versionRef.current);
+          const syncResult = await syncService.emitPlay({
+            roomId: roomStore.room.roomId,
+            userId: deviceId,
+            trackId: trackData.trackId,
+            seekTime: restoredPosition,
+            version: versionRef.current,
+          });
+          if (!syncResult.success) {
+            console.error('[PlayerScreen] Failed to send initial play sync:', syncResult.error);
+            // If room not found, clear room state
+            if (syncResult.error?.includes('not found') || syncResult.error?.includes('不存在')) {
+              toast.error('房间已失效');
+              roomStore.clear();
+            }
+          }
+          // Always update version from server response
+          if (syncResult.currentState) {
+            versionRef.current = syncResult.currentState.version;
+            console.log('[PlayerScreen] Updated version ref after initial play:', versionRef.current);
+            roomStore.updateSyncState(syncResult.currentState);
+          }
+        }
       }
 
       // Add to history
@@ -315,9 +390,48 @@ export default function PlayerScreen() {
   const handlePlayPause = async () => {
     if (isPlaying) {
       pause();
+      // Emit pause event if in room
+      if (roomStore.room && track && deviceId) {
+        console.log('[PlayerScreen] Emitting pause event to room:', roomStore.room.roomId, 'version:', versionRef.current);
+        const result = await syncService.emitPause({
+          roomId: roomStore.room.roomId,
+          userId: deviceId,
+          seekTime: position,
+          version: versionRef.current,
+        });
+        if (!result.success) {
+          console.error('[PlayerScreen] Failed to emit pause:', result.error);
+        }
+        // Always update version from server response
+        if (result.currentState) {
+          versionRef.current = result.currentState.version;
+          console.log('[PlayerScreen] Updated version ref after pause:', versionRef.current);
+          roomStore.updateSyncState(result.currentState);
+        }
+      }
     } else {
       if (audioUrl && track) {
         await resume();
+        // Emit play event if in room
+        if (roomStore.room && track && deviceId) {
+          console.log('[PlayerScreen] Emitting play event to room:', roomStore.room.roomId, 'version:', versionRef.current);
+          const result = await syncService.emitPlay({
+            roomId: roomStore.room.roomId,
+            userId: deviceId,
+            trackId: track.trackId,
+            seekTime: position,
+            version: versionRef.current,
+          });
+          if (!result.success) {
+            console.error('[PlayerScreen] Failed to emit play:', result.error);
+          }
+          // Always update version from server response
+          if (result.currentState) {
+            versionRef.current = result.currentState.version;
+            console.log('[PlayerScreen] Updated version ref after play:', versionRef.current);
+            roomStore.updateSyncState(result.currentState);
+          }
+        }
       }
     }
   };
@@ -357,6 +471,26 @@ export default function PlayerScreen() {
     // Validate calculated position before seeking
     if (Number.isFinite(newPosition) && newPosition >= 0) {
       seek(newPosition);
+      // Emit seek event if in room
+      if (roomStore.room && track && deviceId) {
+        console.log('[PlayerScreen] Emitting seek event to room:', roomStore.room.roomId, 'version:', versionRef.current);
+        syncService.emitSeek({
+          roomId: roomStore.room.roomId,
+          userId: deviceId,
+          seekTime: newPosition,
+          version: versionRef.current,
+        }).then(result => {
+          if (!result.success) {
+            console.error('[PlayerScreen] Failed to emit seek:', result.error);
+          }
+          // Always update version from server response
+          if (result.currentState) {
+            versionRef.current = result.currentState.version;
+            console.log('[PlayerScreen] Updated version ref after seek:', versionRef.current);
+            roomStore.updateSyncState(result.currentState);
+          }
+        });
+      }
     }
   };
 
@@ -414,9 +548,16 @@ export default function PlayerScreen() {
           <Text style={[styles.backButtonText, { color: theme.colors.text }]}>←</Text>
         </TouchableOpacity>
         
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          正在播放
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
+            {roomStore.room ? `房间 ${roomStore.room.roomId}` : '正在播放'}
+          </Text>
+          {roomStore.room && (
+            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {roomStore.room.members.length} 人 • {roomStore.isHost ? '主持人' : '成员'}
+            </Text>
+          )}
+        </View>
 
         <TouchableOpacity
           style={styles.eqButton}
@@ -469,9 +610,9 @@ export default function PlayerScreen() {
         </View>
       ) : (
         <View style={styles.albumArtContainer}>
-          {track.albumArt ? (
+          {track.coverUrl ? (
             <Image
-              source={{ uri: track.albumArt }}
+              source={{ uri: track.coverUrl }}
               style={[styles.albumArt, { backgroundColor: theme.colors.surface }]}
               resizeMode="cover"
             />
@@ -557,16 +698,25 @@ export default function PlayerScreen() {
       {/* Playback Controls */}
       <View style={styles.controls}>
         <TouchableOpacity
-          style={styles.controlButton}
+          style={[
+            styles.controlButton,
+            { 
+              backgroundColor: theme.colors.primary,
+              shadowColor: theme.colors.primary,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }
+          ]}
           onPress={handlePlayPause}
           disabled={isPlayerLoading}
+          activeOpacity={0.8}
         >
           {isPlayerLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={[styles.playButtonText, { color: theme.colors.primary }]}>
-              {isPlaying ? '⏸' : '▶'}
-            </Text>
+            <PlayIcon isPlaying={isPlaying} size={36} color="#FFFFFF" />
           )}
         </TouchableOpacity>
       </View>
@@ -605,11 +755,20 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 44,
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    flex: 1,
     textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 2,
   },
   eqButton: {
     width: 44,
@@ -736,11 +895,9 @@ const styles = StyleSheet.create({
   controlButton: {
     width: 72,
     height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  playButtonText: {
-    fontSize: 48,
   },
   loadingText: {
     fontSize: 16,

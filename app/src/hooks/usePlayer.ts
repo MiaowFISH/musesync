@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { audioService } from '../services/audio/AudioService';
 import { usePlayerStore } from '../stores';
+import { playbackStateStorage } from '../services/storage/PlaybackStateStorage';
 import type { Track } from '@shared/types/entities';
 
 export interface UsePlayerResult {
@@ -24,6 +25,7 @@ export interface UsePlayerResult {
   seek: (positionSeconds: number) => void;
   setVolume: (volume: number) => void;
   setPlaybackRate: (rate: number) => void;
+  loadTrack: (track: Track) => void;
   
   // Status
   error: string | null;
@@ -165,6 +167,15 @@ export function usePlayer(): UsePlayerResult {
     store.setPlaybackRate(rate);
   }, [store]);
 
+  /**
+   * Load track metadata without playing
+   */
+  const loadTrack = useCallback((track: Track) => {
+    store.setCurrentTrack(track);
+    store.setDuration(track.duration);
+    store.setPosition(0);
+  }, [store]);
+
   return {
     // State
     isPlaying: store.isPlaying,
@@ -182,6 +193,7 @@ export function usePlayer(): UsePlayerResult {
     seek,
     setVolume,
     setPlaybackRate,
+    loadTrack,
     
     // Status
     error,
