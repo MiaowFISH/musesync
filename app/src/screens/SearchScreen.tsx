@@ -1,7 +1,7 @@
 // app/src/screens/SearchScreen.tsx
 // Music search screen with NetEase API integration
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,9 @@ import { useTheme } from '../hooks/useTheme';
 import { musicApi } from '../services/api/MusicApi';
 import { Input } from '../components/ui/Input';
 import { toast } from '../components/common/Toast';
+import { searchHistoryStorage } from '../services/storage/SearchHistoryStorage';
 import type { SearchSong } from '@shared/types/api';
+import type { SearchHistoryItem } from '../services/storage/SearchHistoryStorage';
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
@@ -30,6 +32,17 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+
+  // Load search history on mount
+  useEffect(() => {
+    loadSearchHistory();
+  }, []);
+
+  const loadSearchHistory = async () => {
+    const history = await searchHistoryStorage.getHistory();
+    setSearchHistory(history);
+  };
 
   const performSearch = useCallback(async (keyword: string) => {
     if (!keyword || keyword.trim().length === 0) {
@@ -42,6 +55,10 @@ export default function SearchScreen() {
     setError(null);
 
     try {
+      // Save to search history
+      await searchHistoryStorage.addKeyword(keyword.trim());
+      loadSearchHistory();
+
       const response = await musicApi.search({
         keyword: keyword.trim(),
         limit: 20,
@@ -94,6 +111,22 @@ export default function SearchScreen() {
     },
     [navigation]
   );
+
+  const handleHistoryPress = (keyword: string) => {
+    setSearchText(keyword);
+    performSearch(keyword);
+  };
+
+  const handleRemoveHistory = async (keyword: string) => {
+    await searchHistoryStorage.removeKeyword(keyword);
+    loadSearchHistory();
+  };
+
+  const handleClearHistory = async () => {
+    await searchHistoryStorage.clearHistory();
+    setSearchHistory([]);
+    toast.success('历史记录已清空');
+  };
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -149,6 +182,47 @@ export default function SearchScreen() {
     }
 
     if (searchText.trim().length === 0) {
+      // Show search history when no search text
+      if (searchHistory.length > 0) {
+        return (
+          <View style={styles.historyContainer}>
+            <View style={styles.historyHeader}>
+              <Text style={[styles.historyTitle, { color: theme.colors.text }]}>
+                搜索历史
+              </Text>
+              <TouchableOpacity onPress={handleClearHistory}>
+                <Text style={[styles.clearHistoryText, { color: theme.colors.primary }]}>
+                  清空
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.historyList}>
+              {searchHistory.map((item) => (
+                <View key={item.keyword} style={styles.historyItem}>
+                  <TouchableOpacity
+                    style={styles.historyItemButton}
+                    onPress={() => handleHistoryPress(item.keyword)}
+                  >
+                    <Text style={[styles.historyItemText, { color: theme.colors.text }]}>
+                      🔍 {item.keyword}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.historyRemoveButton}
+                    onPress={() => handleRemoveHistory(item.keyword)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={[styles.historyRemoveText, { color: theme.colors.textSecondary }]}>
+                      ✕
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        );
+      }
+
       return (
         <View style={styles.emptyState}>
           <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
@@ -350,5 +424,45 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  historyContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  clearHistoryText: {
+    fontSize: 14,
+  },
+  historyList: {
+    gap: 8,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+  },
+  historyItemButton: {
+    flex: 1,
+  },
+  historyItemText: {
+    fontSize: 16,
+  },
+  historyRemoveButton: {
+    padding: 4,
+  },
+  historyRemoveText: {
+    fontSize: 18,
   },
 });

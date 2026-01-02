@@ -10,6 +10,8 @@ const KEYS = {
   VOLUME: '@musictogether:volume',
   AUTO_PLAY: '@musictogether:auto_play',
   API_URL: '@musictogether:api_url',
+  USERNAME: '@musictogether:username',
+  DEVICE_ID: '@musictogether:device_id',
 } as const;
 
 export interface PreferencesData {
@@ -145,6 +147,52 @@ class PreferencesStorage {
       await AsyncStorage.setItem(KEYS.API_URL, url);
     } catch (error) {
       console.error('[PreferencesStorage] Set API URL error:', error);
+    }
+  }
+
+  /**
+   * Get username
+   */
+  async getUsername(): Promise<string> {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.USERNAME);
+      return value || '';
+    } catch (error) {
+      console.error('[PreferencesStorage] Get username error:', error);
+      return '';
+    }
+  }
+
+  /**
+   * Set username
+   */
+  async setUsername(username: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.USERNAME, username);
+    } catch (error) {
+      console.error('[PreferencesStorage] Set username error:', error);
+    }
+  }
+
+  /**
+   * Get or generate device ID
+   */
+  async getDeviceId(): Promise<string> {
+    try {
+      let deviceId = await AsyncStorage.getItem(KEYS.DEVICE_ID);
+      if (!deviceId) {
+        // Generate new device ID
+        const platform = typeof window !== 'undefined' && window.navigator ? 
+          (window.navigator.platform || 'web') : 'unknown';
+        deviceId = `${platform}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await AsyncStorage.setItem(KEYS.DEVICE_ID, deviceId);
+        console.log('[PreferencesStorage] Generated new device ID:', deviceId);
+      }
+      return deviceId;
+    } catch (error) {
+      console.error('[PreferencesStorage] Get device ID error:', error);
+      // Fallback to temporary ID
+      return `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
   }
 

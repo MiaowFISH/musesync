@@ -115,16 +115,23 @@ export function registerRoomHandlers(socket: Socket) {
       if (result.deleted) {
         // Room deleted, cleanup
         syncEngine.cleanupRoom(request.roomId);
-        console.log(`[RoomHandlers] Room ${request.roomId} deleted`);
+        console.log(`[RoomHandlers] Room ${request.roomId} deleted (no members)`);
       } else {
-        // Broadcast member left to remaining members
+        // Get updated room
+        const updatedRoom = roomManager.getRoom(request.roomId);
+        
+        // Broadcast member left to remaining members with updated room data
         socket.to(request.roomId).emit('member:left', {
           userId: request.userId,
           newHostId: result.newHostId,
-          roomId: request.roomId,
+          room: updatedRoom,
         });
 
-        console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}`);
+        if (result.newHostId) {
+          console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}, host transferred to ${result.newHostId}`);
+        } else {
+          console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}`);
+        }
       }
     } catch (error) {
       console.error('[RoomHandlers] Error in room:leave:', error);

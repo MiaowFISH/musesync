@@ -2,25 +2,22 @@
 // Home screen - entry point
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { useTheme } from '../hooks/useTheme';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { socketManager } from '../services/sync/SocketManager';
 import { roomService } from '../services/sync/RoomService';
 import { toast } from '../components/common/Toast';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
+import { preferencesStorage } from '../services/storage/PreferencesStorage';
+import { roomHistoryStorage, type RoomHistoryItem } from '../services/storage/RoomHistoryStorage';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
-
-// Generate device ID (would normally be from device UUID)
-const getDeviceId = () => {
-  return `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
 
 export const HomeScreen: React.FC = () => {
   const { colors, spacing } = useTheme();
@@ -30,6 +27,49 @@ export const HomeScreen: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [createdRooms, setCreatedRooms] = useState<RoomHistoryItem[]>([]);
+  const [joinedRooms, setJoinedRooms] = useState<RoomHistoryItem[]>([]);
+  const [deviceId, setDeviceId] = useState<string>('');
+
+  // Load saved username, room history, and device ID on mount
+  useEffect(() => {
+    const loadData = async () => {
+      const savedUsername = await preferencesStorage.getUsername();
+      if (savedUsername) {
+        setUsername(savedUsername);
+      }
+      const created = await roomHistoryStorage.getCreatedRooms();
+      const joined = await roomHistoryStorage.getJoinedRooms();
+      setCreatedRooms(created);
+      setJoinedRooms(joined);
+      
+      // Get or generate device ID
+      const id = await preferencesStorage.getDeviceId();
+      setDeviceId(id);
+      console.log('[HomeScreen] Device ID:', id);
+    };
+    loadData();
+  }, []);
+
+  // Reload room history when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const reloadHistory = async () => {
+        const created = await roomHistoryStorage.getCreatedRooms();
+        const joined = await roomHistoryStorage.getJoinedRooms();
+        setCreatedRooms(created);
+        setJoinedRooms(joined);
+      };
+      reloadHistory();
+    }, [])
+  );
+
+  // Save username when it changes
+  useEffect(() => {
+    if (username.trim()) {
+      preferencesStorage.setUsername(username.trim());
+    }
+  }, [username]);
 
   // Connect to server on mount
   useEffect(() => {
@@ -60,22 +100,38 @@ export const HomeScreen: React.FC = () => {
       return;
     }
 
+    if (!deviceId) {
+      toast.error('设备ID未初始化');
+      return;
+    }
+
     setIsCreating(true);
     try {
-      const userId = getDeviceId();
       const result = await roomService.createRoom({
-        userId,
+        userId: deviceId,
         username: username.trim(),
-        deviceId: getDeviceId(),
+        deviceId: deviceId,
         deviceType: Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android',
       });
 
       if (result.success && result.room) {
+        // Save to created rooms history
+        await roomHistoryStorage.addCreatedRoom({
+          roomId: result.room.roomId,
+          roomCode: result.room.roomId,
+          timestamp: Date.now(),
+          memberCount: result.room.members.length,
+        });
+        
+        // Reload history to update UI
+        const created = await roomHistoryStorage.getCreatedRooms();
+        setCreatedRooms(created);
+        
         toast.success(`房间已创建: ${result.room.roomId}`);
         navigation.navigate('Room', { 
           roomId: result.room.roomId, 
           room: result.room,
-          userId 
+          userId: deviceId 
         });
       } else {
         toast.error(result.error || '创建房间失败');
@@ -104,23 +160,39 @@ export const HomeScreen: React.FC = () => {
       return;
     }
 
+    if (!deviceId) {
+      toast.error('设备ID未初始化');
+      return;
+    }
+
     setIsJoining(true);
     try {
-      const userId = getDeviceId();
       const result = await roomService.joinRoom({
         roomId: roomCode,
-        userId,
+        userId: deviceId,
         username: username.trim(),
-        deviceId: getDeviceId(),
+        deviceId: deviceId,
         deviceType: Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android',
       });
 
       if (result.success && result.room) {
+        // Save to joined rooms history
+        await roomHistoryStorage.addJoinedRoom({
+          roomId: result.room.roomId,
+          roomCode: result.room.roomId,
+          timestamp: Date.now(),
+          memberCount: result.room.members.length,
+        });
+        
+        // Reload history to update UI
+        const joined = await roomHistoryStorage.getJoinedRooms();
+        setJoinedRooms(joined);
+        
         toast.success(`已加入房间: ${result.room.roomId}`);
         navigation.navigate('Room', { 
           roomId: result.room.roomId, 
           room: result.room,
-          userId 
+          userId: deviceId 
         });
       } else {
         toast.error(result.error || '加入房间失败');
@@ -143,6 +215,18 @@ export const HomeScreen: React.FC = () => {
 
   const handleSettings = () => {
     navigation.navigate('Settings');
+  };
+
+  const handleRemoveCreatedRoom = async (roomId: string) => {
+    await roomHistoryStorage.removeCreatedRoom(roomId);
+    const created = await roomHistoryStorage.getCreatedRooms();
+    setCreatedRooms(created);
+  };
+
+  const handleRemoveJoinedRoom = async (roomId: string) => {
+    await roomHistoryStorage.removeJoinedRoom(roomId);
+    const joined = await roomHistoryStorage.getJoinedRooms();
+    setJoinedRooms(joined);
   };
 
   return (
@@ -185,6 +269,42 @@ export const HomeScreen: React.FC = () => {
           style={{ marginTop: spacing.sm }}
           disabled={isCreating || !username.trim()}
         />
+        
+        {/* Created rooms history */}
+        {createdRooms.length > 0 && (
+          <View style={styles.historySection}>
+            <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
+              最近创建
+            </Text>
+            {createdRooms.slice(0, 3).map((room) => (
+              <View
+                key={room.roomId}
+                style={[styles.historyItem, { backgroundColor: colors.background }]}
+              >
+                <TouchableOpacity
+                  style={styles.historyItemButton}
+                  onPress={() => setRoomCode(room.roomCode)}
+                >
+                  <Text style={[styles.historyRoomCode, { color: colors.text }]}>
+                    {room.roomCode}
+                  </Text>
+                  <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
+                    {new Date(room.timestamp).toLocaleDateString()}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.historyDeleteButton}
+                  onPress={() => handleRemoveCreatedRoom(room.roomId)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={[styles.historyDeleteText, { color: colors.error }]}>
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
 
       <Card style={styles.card}>
@@ -213,6 +333,42 @@ export const HomeScreen: React.FC = () => {
           style={{ marginTop: spacing.sm }}
           variant="secondary"
         />
+        
+        {/* Joined rooms history */}
+        {joinedRooms.length > 0 && (
+          <View style={styles.historySection}>
+            <Text style={[styles.historyTitle, { color: colors.textSecondary }]}>
+              最近加入
+            </Text>
+            {joinedRooms.slice(0, 3).map((room) => (
+              <View
+                key={room.roomId}
+                style={[styles.historyItem, { backgroundColor: colors.background }]}
+              >
+                <TouchableOpacity
+                  style={styles.historyItemButton}
+                  onPress={() => setRoomCode(room.roomCode)}
+                >
+                  <Text style={[styles.historyRoomCode, { color: colors.text }]}>
+                    {room.roomCode}
+                  </Text>
+                  <Text style={[styles.historyTimestamp, { color: colors.textSecondary }]}>
+                    {new Date(room.timestamp).toLocaleDateString()}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.historyDeleteButton}
+                  onPress={() => handleRemoveJoinedRoom(room.roomId)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={[styles.historyDeleteText, { color: colors.error }]}>
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
 
       <Card style={styles.card}>
@@ -281,6 +437,47 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  historySection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  historyTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  historyItemButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyRoomCode: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  historyTimestamp: {
+    fontSize: 12,
+  },
+  historyDeleteButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  historyDeleteText: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   footer: {
     marginTop: 40,

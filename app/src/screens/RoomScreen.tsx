@@ -66,7 +66,12 @@ export const RoomScreen: React.FC = () => {
         if (data.room) {
           setRoom(data.room);
         }
-        toast.info(`有成员离开了房间`);
+        
+        if (data.newHostId) {
+          toast.info('主持人已离开，管理权已转移');
+        } else {
+          toast.info('有成员离开了房间');
+        }
       });
 
       // Sync state update
@@ -101,24 +106,36 @@ export const RoomScreen: React.FC = () => {
     };
   }, [room, navigation]);
 
-  const handleLeaveRoom = () => {
-    Alert.alert(
-      '离开房间',
-      '确定要离开房间吗？',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '离开',
-          style: 'destructive',
-          onPress: () => {
-            if (room && userId) {
-              roomService.leaveRoom({ roomId, userId });
-            }
-            navigation.navigate('Home');
-          },
-        },
-      ]
-    );
+  const handleLeaveRoom = async () => {
+    // Use window.confirm for web compatibility
+    const confirmed = Platform.OS === 'web' 
+      ? window.confirm('确定要离开房间吗？')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            '离开房间',
+            '确定要离开房间吗？',
+            [
+              { text: '取消', style: 'cancel', onPress: () => resolve(false) },
+              { text: '离开', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    if (!confirmed) return;
+
+    try {
+      if (room && userId) {
+        console.log('[RoomScreen] Leaving room:', roomId, 'userId:', userId);
+        await roomService.leaveRoom({ roomId, userId });
+        toast.success('已离开房间');
+      }
+      navigation.navigate('Home');
+    } catch (error) {
+      console.error('[RoomScreen] Leave room error:', error);
+      toast.error('离开房间失败');
+      // Still navigate home even if leave fails
+      navigation.navigate('Home');
+    }
   };
 
   const handleGoToPlayer = () => {
