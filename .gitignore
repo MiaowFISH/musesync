@@ -65,5 +65,9 @@ web-build/
 # macOS
 .DS_Store
 
-#
+# Yarn
 .yarn/install-state.gz
+
+# Expo
+/app/android
+/app/ios
