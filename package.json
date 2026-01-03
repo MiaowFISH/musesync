@@ -4,14 +4,12 @@
   "private": true,
   "workspaces": [
     "app",
-    "web",
     "backend",
     "shared"
   ],
   "scripts": {
     "dev": "yarn workspace backend dev",
     "dev:app": "yarn workspace app start",
-    "dev:web": "yarn workspace web dev",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "type-check": "tsc --noEmit"
@@ -26,5 +24,8 @@
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
   },
-  "packageManager": "yarn@4.12.0"
+  "packageManager": "yarn@4.12.0",
+  "resolutions": {
+    "@expo/cli@npm:54.0.20": "patch:@expo/cli@npm%3A54.0.20#~/.yarn/patches/@expo-cli-npm-54.0.20-5db1021132.patch"
+  }
 }
