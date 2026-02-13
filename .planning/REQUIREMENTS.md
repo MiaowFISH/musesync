@@ -92,36 +92,36 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLST-01 | — | Pending |
-| PLST-02 | — | Pending |
-| PLST-03 | — | Pending |
-| PLST-04 | — | Pending |
-| PLST-05 | — | Pending |
-| PLST-06 | — | Pending |
-| BGPB-01 | — | Pending |
-| BGPB-02 | — | Pending |
-| BGPB-03 | — | Pending |
-| BGPB-04 | — | Pending |
-| NETR-01 | — | Pending |
-| NETR-02 | — | Pending |
-| NETR-03 | — | Pending |
-| NETR-04 | — | Pending |
-| NETR-05 | — | Pending |
-| CTRL-01 | — | Pending |
-| CTRL-02 | — | Pending |
-| CTRL-03 | — | Pending |
-| CTRL-04 | — | Pending |
-| CTRL-05 | — | Pending |
-| CTRL-06 | — | Pending |
-| CTRL-07 | — | Pending |
-| BUGF-01 | — | Pending |
-| BUGF-02 | — | Pending |
+| BUGF-01 | Phase 1 | Pending |
+| BUGF-02 | Phase 1 | Pending |
+| PLST-01 | Phase 2 | Pending |
+| PLST-02 | Phase 2 | Pending |
+| PLST-03 | Phase 2 | Pending |
+| PLST-04 | Phase 2 | Pending |
+| PLST-05 | Phase 2 | Pending |
+| PLST-06 | Phase 2 | Pending |
+| BGPB-01 | Phase 3 | Pending |
+| BGPB-02 | Phase 3 | Pending |
+| BGPB-03 | Phase 3 | Pending |
+| BGPB-04 | Phase 3 | Pending |
+| NETR-01 | Phase 3 | Pending |
+| NETR-02 | Phase 3 | Pending |
+| NETR-03 | Phase 3 | Pending |
+| NETR-04 | Phase 3 | Pending |
+| NETR-05 | Phase 3 | Pending |
+| CTRL-01 | Phase 4 | Pending |
+| CTRL-02 | Phase 4 | Pending |
+| CTRL-03 | Phase 4 | Pending |
+| CTRL-04 | Phase 4 | Pending |
+| CTRL-05 | Phase 4 | Pending |
+| CTRL-06 | Phase 4 | Pending |
+| CTRL-07 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-14*
-*Last updated: 2026-02-14 after initial definition*
+*Last updated: 2026-02-14 after roadmap creation*
