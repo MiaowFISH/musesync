@@ -58,7 +58,7 @@ export class RoomManager {
         playbackRate: 1.0,
         volume: 1.0,
         updatedBy: request.userId,
-        version: 0,
+        version: 1,
       };
 
       // Create room
@@ -233,7 +233,7 @@ export class RoomManager {
       return false;
     }
 
-    room.syncState = { ...syncState, version: room.syncState.version + 1 };
+    room.syncState = syncState;
     room.lastActivityAt = Date.now();
     roomStore.updateRoom(roomId, room);
     roomStore.touchRoom(roomId);

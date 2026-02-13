@@ -4,6 +4,7 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import type { SyncState } from '@shared/types/entities';
 import { roomManager } from '../room/RoomManager';
+import { incrementVersion, isVersionNewer } from './versionUtils';
 
 /**
  * Sync Engine
@@ -11,9 +12,11 @@ import { roomManager } from '../room/RoomManager';
  */
 export class SyncEngine {
   private io: SocketIOServer | null = null;
-  private heartbeatTimers: Map<string, NodeJS.Timeout> = new Map();
+  private heartbeatTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
+  private trackChangeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly HEARTBEAT_INTERVAL = 300000; // 5 minutes (increased to avoid false positives)
   private readonly MEMBER_TIMEOUT = 600000; // 10 minutes
+  private readonly TRACK_CHANGE_DEBOUNCE = 300; // 300ms leading-edge debounce
 
   /**
    * Initialize with Socket.IO server
@@ -77,23 +80,35 @@ export class SyncEngine {
 
     const currentState = room.syncState;
 
-    // Last-Write-Wins: Check version number only if client provides version
-    // For new play events (trackId change), ignore version check
-    const isNewTrack = newSyncState.trackId && newSyncState.trackId !== currentState.trackId;
-    
-    if (!isNewTrack && newSyncState.version !== undefined && newSyncState.version < currentState.version) {
+    // Track change debounce: leading-edge, 300ms window
+    const isTrackChange = newSyncState.trackId !== null && newSyncState.trackId !== currentState.trackId;
+    if (isTrackChange) {
+      if (this.trackChangeTimers.has(roomId)) {
+        // Within debounce window — reject subsequent track changes
+        console.warn(`[SyncEngine] Debounced track change from ${userId} in room ${roomId}`);
+        return { success: false, error: 'Debounced' };
+      }
+      // First track change goes through — set debounce timer
+      const timer = setTimeout(() => {
+        this.trackChangeTimers.delete(roomId);
+      }, this.TRACK_CHANGE_DEBOUNCE);
+      this.trackChangeTimers.set(roomId, timer);
+    }
+
+    // Stale update check with wrap-around-safe comparison
+    if (newSyncState.version !== undefined && !isVersionNewer(newSyncState.version, currentState.version) && newSyncState.version !== currentState.version) {
       console.warn(
         `[SyncEngine] Rejected stale update from ${userId}: version ${newSyncState.version} < ${currentState.version}`
       );
       return { success: false, currentState, error: 'Stale update rejected' };
     }
 
-    // Update sync state
+    // Update sync state — always increment version, never reset
     const updatedState: SyncState = {
       ...newSyncState,
       serverTimestamp: Date.now(),
       updatedBy: userId,
-      version: isNewTrack ? 0 : currentState.version + 1,
+      version: incrementVersion(currentState.version),
     };
 
     const success = roomManager.updateSyncState(roomId, updatedState);
@@ -202,6 +217,14 @@ export class SyncEngine {
     }
 
     keysToDelete.forEach(key => this.heartbeatTimers.delete(key));
+
+    // Clean up track change debounce timer
+    const trackTimer = this.trackChangeTimers.get(roomId);
+    if (trackTimer) {
+      clearTimeout(trackTimer);
+      this.trackChangeTimers.delete(roomId);
+    }
+
     console.log(`[SyncEngine] Cleaned up ${keysToDelete.length} heartbeats for room ${roomId}`);
   }
 }
