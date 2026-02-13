@@ -27,10 +27,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. Version number persists correctly across track changes without resetting to 0
   2. Socket reconnection completes without ID race conditions
   3. Existing sync features (play/pause/seek) continue working without regression
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: [To be planned]
+- [ ] 01-01-PLAN.md — Fix version number reset (BUGF-01): version utility, SyncEngine fix, RoomManager fix
+- [ ] 01-02-PLAN.md — Backend reconnection infrastructure (BUGF-02): clientId types, connection tracking, grace period, state snapshot
+- [ ] 01-03-PLAN.md — Client reconnection + UI (BUGF-02): persistent UUID, rejoin flow, disabled controls, manual verification
 
 ### Phase 2: Playlist Management
 **Goal**: Users can view, modify, and sync playback queue across all room members
@@ -86,7 +88,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bug Fixes & Foundation | 0/TBD | Not started | - |
+| 1. Bug Fixes & Foundation | 0/3 | Planned | - |
 | 2. Playlist Management | 0/TBD | Not started | - |
 | 3. Background Playback & Network Recovery | 0/TBD | Not started | - |
 | 4. Control Modes | 0/TBD | Not started | - |
