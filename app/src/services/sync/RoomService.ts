@@ -25,6 +25,9 @@ export class RoomService {
     deviceId: string;
     deviceType: 'ios' | 'android' | 'web';
   }): Promise<{ success: boolean; room?: Room; error?: string }> {
+    // Ensure clientId is ready
+    await socketManager.getOrCreateClientId();
+
     return new Promise((resolve, reject) => {
       const socket = socketManager.getSocket();
       if (!socket?.connected) {
@@ -37,6 +40,7 @@ export class RoomService {
         username: params.username,
         deviceId: params.deviceId,
         deviceType: params.deviceType,
+        clientId: socketManager.getClientId()!,
       };
 
       console.log('[RoomService] Creating room...', { username: params.username });
@@ -51,7 +55,10 @@ export class RoomService {
 
         if (response.success && response.room) {
           console.log(`[RoomService] Room created: ${response.room.roomId}`);
-          
+
+          // Track current room for auto-rejoin
+          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+
           // Start time sync after joining room
           timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
             console.error('[RoomService] Time sync failed:', error);
@@ -82,6 +89,9 @@ export class RoomService {
     deviceId: string;
     deviceType: 'ios' | 'android' | 'web';
   }): Promise<{ success: boolean; room?: Room; error?: string }> {
+    // Ensure clientId is ready
+    await socketManager.getOrCreateClientId();
+
     return new Promise((resolve, reject) => {
       const socket = socketManager.getSocket();
       if (!socket?.connected) {
@@ -95,6 +105,7 @@ export class RoomService {
         username: params.username,
         deviceId: params.deviceId,
         deviceType: params.deviceType,
+        clientId: socketManager.getClientId()!,
       };
 
       console.log('[RoomService] Joining room...', { roomId: params.roomId, username: params.username });
@@ -109,7 +120,10 @@ export class RoomService {
 
         if (response.success && response.room) {
           console.log(`[RoomService] Joined room: ${response.room.roomId}`);
-          
+
+          // Track current room for auto-rejoin
+          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+
           // Start time sync after joining room
           timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
             console.error('[RoomService] Time sync failed:', error);
@@ -160,6 +174,9 @@ export class RoomService {
    * Leave current room
    */
   leaveRoom(params: { roomId: string; userId: string }): void {
+    // Clear room context before leaving
+    socketManager.clearCurrentRoom();
+
     const socket = socketManager.getSocket();
     if (!socket?.connected) {
       console.warn('[RoomService] Cannot leave room, not connected');
@@ -177,6 +194,56 @@ export class RoomService {
 
     // Reset time sync
     timeSyncService.reset();
+  }
+
+  /**
+   * Rejoin a room after reconnection (manual fallback)
+   */
+  async rejoinRoom(params: {
+    roomId: string;
+    userId: string;
+    username: string;
+    deviceId: string;
+    deviceType: 'ios' | 'android' | 'web';
+  }): Promise<{ success: boolean; room?: Room; error?: string }> {
+    await socketManager.getOrCreateClientId();
+
+    return new Promise((resolve) => {
+      const socket = socketManager.getSocket();
+      if (!socket?.connected) {
+        resolve({ success: false, error: 'Not connected to server' });
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Request timeout' });
+      }, 10000);
+
+      socket.emit('room:rejoin', {
+        roomId: params.roomId,
+        userId: params.userId,
+        clientId: socketManager.getClientId()!,
+        username: params.username,
+        deviceId: params.deviceId,
+        deviceType: params.deviceType,
+      }, (response: any) => {
+        clearTimeout(timeout);
+
+        if (response?.success && response.room) {
+          console.log(`[RoomService] Rejoined room: ${response.room.roomId}`);
+          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+
+          timeSyncService.performSync(response.room.roomId, params.userId).catch((error: any) => {
+            console.error('[RoomService] Time sync failed:', error);
+          });
+
+          resolve({ success: true, room: response.room });
+        } else {
+          console.error('[RoomService] Room rejoin failed:', response?.error);
+          resolve({ success: false, error: response?.error || 'Failed to rejoin room' });
+        }
+      });
+    });
   }
 }
 

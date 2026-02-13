@@ -3,6 +3,7 @@
 
 import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { preferencesStorage } from '../storage/PreferencesStorage';
 import type { SocketEvents } from '@shared/types/socket-events';
 import { NETWORK_CONFIG } from '@shared/constants';
@@ -10,7 +11,7 @@ import { NETWORK_CONFIG } from '@shared/constants';
 /**
  * Connection state
  */
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 /**
  * Socket Manager
@@ -23,6 +24,10 @@ export class SocketManager {
   private stateListeners: Set<(state: ConnectionState) => void> = new Set();
   private reconnectCount = 0;
   private maxReconnectAttempts = 5;
+  private clientId: string | null = null;
+  private isReconnecting: boolean = false;
+  private currentRoomId: string | null = null;
+  private currentUserId: string | null = null;
 
   constructor(serverUrl: string = 'http://localhost:3000') {
     this.serverUrl = serverUrl;
@@ -44,6 +49,69 @@ export class SocketManager {
     
     // Update server URL
     this.serverUrl = newUrl;
+  }
+
+  /**
+   * Get or create a persistent client ID
+   */
+  async getOrCreateClientId(): Promise<string> {
+    if (this.clientId) return this.clientId;
+
+    try {
+      const stored = await AsyncStorage.getItem('musesync:client_id');
+      if (stored) {
+        this.clientId = stored;
+        return stored;
+      }
+    } catch (error) {
+      console.error('[SocketManager] Failed to read clientId from storage:', error);
+    }
+
+    // Generate new UUID
+    const id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+
+    try {
+      await AsyncStorage.setItem('musesync:client_id', id);
+    } catch (error) {
+      console.error('[SocketManager] Failed to store clientId:', error);
+    }
+
+    this.clientId = id;
+    return id;
+  }
+
+  /**
+   * Get cached client ID (synchronous)
+   */
+  getClientId(): string | null {
+    return this.clientId;
+  }
+
+  /**
+   * Store current room context for auto-rejoin on reconnection
+   */
+  setCurrentRoom(roomId: string, userId: string): void {
+    this.currentRoomId = roomId;
+    this.currentUserId = userId;
+  }
+
+  /**
+   * Clear room context (called on explicit leave)
+   */
+  clearCurrentRoom(): void {
+    this.currentRoomId = null;
+    this.currentUserId = null;
+  }
+
+  /**
+   * Check if currently reconnecting
+   */
+  getIsReconnecting(): boolean {
+    return this.isReconnecting;
   }
 
   /**
@@ -95,7 +163,12 @@ export class SocketManager {
 
     this.socket.on('disconnect', (reason) => {
       console.log(`[SocketManager] Disconnected: ${reason}`);
-      this.setConnectionState('disconnected');
+      // If not intentional disconnect, show reconnecting state
+      if (reason !== 'io client disconnect') {
+        this.setConnectionState('reconnecting');
+      } else {
+        this.setConnectionState('disconnected');
+      }
     });
 
     this.socket.on('connect_error', (error: any) => {
@@ -120,7 +193,39 @@ export class SocketManager {
     this.socket.on('reconnect', (attemptNumber) => {
       console.log(`[SocketManager] Reconnected after ${attemptNumber} attempts`);
       this.reconnectCount = 0;
-      this.setConnectionState('connected');
+
+      // Auto-rejoin room if we were in one
+      if (this.currentRoomId && this.currentUserId && this.clientId) {
+        this.isReconnecting = true;
+        this.setConnectionState('reconnecting');
+
+        const rejoinTimeout = setTimeout(() => {
+          console.error('[SocketManager] Rejoin timeout');
+          this.isReconnecting = false;
+          this.setConnectionState('error');
+        }, 5000);
+
+        this.socket?.emit('room:rejoin', {
+          roomId: this.currentRoomId,
+          userId: this.currentUserId,
+          clientId: this.clientId,
+          username: '',
+          deviceId: '',
+          deviceType: Platform.OS as 'ios' | 'android' | 'web',
+        }, (response: any) => {
+          clearTimeout(rejoinTimeout);
+          this.isReconnecting = false;
+          if (response?.success) {
+            console.log('[SocketManager] Rejoin successful');
+            this.setConnectionState('connected');
+          } else {
+            console.error('[SocketManager] Rejoin failed:', response?.error);
+            this.setConnectionState('error');
+          }
+        });
+      } else {
+        this.setConnectionState('connected');
+      }
     });
 
     this.socket.on('reconnect_error', (error) => {
@@ -147,6 +252,7 @@ export class SocketManager {
       this.socket = null;
     }
     this.reconnectCount = 0;
+    this.clearCurrentRoom();
     this.setConnectionState('disconnected');
   }
 

@@ -26,7 +26,7 @@ import { usePlayer } from '../hooks/usePlayer';
 import { useRoomStore } from '../stores';
 import { musicApi } from '../services/api/MusicApi';
 import type { Track } from '@shared/types/entities';
-import type { SyncStateEvent, MemberJoinedEvent, MemberLeftEvent, SyncHeartbeatEvent } from '@shared/types/socket-events';
+import type { SyncStateEvent, MemberJoinedEvent, MemberLeftEvent, SyncHeartbeatEvent, RoomStateSnapshot } from '@shared/types/socket-events';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Room'>;
 type RoomRouteProp = RouteProp<RootStackParamList, 'Room'>;
@@ -41,6 +41,7 @@ export const RoomScreen: React.FC = () => {
 
   const [room, setRoom] = useState<Room | null>(initialRoom || null);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Set room in store when entering
   useEffect(() => {
@@ -59,12 +60,17 @@ export const RoomScreen: React.FC = () => {
     const unsubscribe = socketManager.onStateChange((state) => {
       const newState = state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : 'error';
       setConnectionState(newState);
-      
+
+      // Track reconnecting state for UI disable
+      if (state === 'reconnecting') {
+        setIsReconnecting(true);
+      } else if (state === 'connected') {
+        setIsReconnecting(false);
+      }
+
       // If reconnected, check if room still exists
       if (state === 'connected' && room) {
         console.log('[RoomScreen] Reconnected, verifying room still exists...');
-        // The room might have been destroyed on server restart
-        // We'll rely on error events to detect this
       }
     });
 
@@ -324,6 +330,52 @@ export const RoomScreen: React.FC = () => {
           pause();
         }
       });
+
+      // State snapshot handler — server state overwrites local on reconnection
+      socket.on('room:state_snapshot', async (snapshot: RoomStateSnapshot) => {
+        console.log('[RoomScreen] Received state snapshot from server');
+        if (snapshot.room) {
+          setRoom(snapshot.room);
+          roomStore.setRoom(snapshot.room);
+          roomStore.updateSyncState(snapshot.syncState);
+
+          // Apply playback state from snapshot
+          const syncState = snapshot.syncState;
+          if (syncState.trackId && syncState.status !== 'stopped') {
+            try {
+              const songResponse = await musicApi.getSongDetail(syncState.trackId);
+              if (songResponse.success && songResponse.data) {
+                const audioResponse = await musicApi.getAudioUrl(syncState.trackId);
+                if (audioResponse.success && audioResponse.data?.audioUrl) {
+                  const track: Track = {
+                    trackId: syncState.trackId,
+                    title: songResponse.data.title || 'Unknown Title',
+                    artist: songResponse.data.artist || 'Unknown Artist',
+                    album: songResponse.data.album || '',
+                    coverUrl: songResponse.data.coverUrl || '',
+                    duration: songResponse.data.duration,
+                    audioUrl: audioResponse.data.audioUrl,
+                    audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+                    quality: audioResponse.data.quality || 'exhigh',
+                    addedAt: Date.now(),
+                  };
+
+                  await play(track, audioResponse.data.audioUrl);
+
+                  if (syncState.status === 'playing') {
+                    seek(syncState.seekTime || 0);
+                  } else {
+                    seek(syncState.seekTime || 0);
+                    pause();
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('[RoomScreen] Error applying snapshot playback:', error);
+            }
+          }
+        }
+      });
     }
 
     return () => {
@@ -335,6 +387,7 @@ export const RoomScreen: React.FC = () => {
         socket.off('room:host_transferred');
         socket.off('sync:state');
         socket.off('sync:heartbeat');
+        socket.off('room:state_snapshot');
         socket.off('error');
         socket.off('room:error');
       }
@@ -597,7 +650,7 @@ export const RoomScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={[styles.contentContainer, { paddingBottom: 80 }]}>
+      <ScrollView style={styles.content} pointerEvents={isReconnecting ? 'none' : 'auto'} contentContainerStyle={[styles.contentContainer, { paddingBottom: 80 }]}>
         {/* Room Info Card */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -735,6 +788,13 @@ export const RoomScreen: React.FC = () => {
           style={styles.actionButton}
         />
       </ScrollView>
+
+      {/* Reconnection overlay */}
+      {isReconnecting && (
+        <View style={styles.reconnectOverlay}>
+          <Text style={styles.reconnectText}>重连中...</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -965,5 +1025,17 @@ const styles = StyleSheet.create({
   actionButton: {
     marginTop: 8,
     marginBottom: 32,
+  },
+  reconnectOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  reconnectText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   },
 });

@@ -43,6 +43,12 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
           label: '连接中...',
           icon: '🟡',
         };
+      case 'reconnecting':
+        return {
+          color: '#FF9800',
+          label: '重连中...',
+          icon: '🟡',
+        };
       case 'disconnected':
         return {
           color: '#9E9E9E',
