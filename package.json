@@ -1,5 +1,5 @@
 {
-  "name": "musesync-workspace",
+  "name": "@musesync/workspace",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -16,7 +16,7 @@
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "typecheck": "turbo run typecheck"
+    "type-check": "turbo run type-check"
   },
   "devDependencies": {
     "oxfmt": "^0.32.0",

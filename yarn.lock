@@ -1992,6 +1992,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@musesync/workspace@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "@musesync/workspace@workspace:."
+  dependencies:
+    oxfmt: "npm:^0.32.0"
+    oxlint: "npm:^1.47.0"
+    turbo: "npm:^2.8.7"
+    typescript: "npm:^5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@neteasecloudmusicapienhanced/api@npm:^4.29.20":
   version: 4.29.20
   resolution: "@neteasecloudmusicapienhanced/api@npm:4.29.20"
@@ -3895,7 +3906,7 @@ __metadata:
     react-native-screens: "npm:~4.16.0"
     react-native-track-player: "npm:^4.1.2"
     react-native-web: "npm:^0.21.0"
-    shaka-player: "npm:^5.0.1"
+    shaka-player: "npm:^4.7.9"
     socket.io-client: "npm:^4.8.3"
     typescript: "npm:~5.9.3"
   languageName: unknown
@@ -7910,17 +7921,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"musictogether-workspace@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "musictogether-workspace@workspace:."
-  dependencies:
-    oxfmt: "npm:^0.32.0"
-    oxlint: "npm:^1.47.0"
-    turbo: "npm:^2.8.7"
-    typescript: "npm:^5.9.3"
-  languageName: unknown
-  linkType: soft
-
 "mz@npm:^2.7.0":
   version: 2.7.0
   resolution: "mz@npm:2.7.0"
@@ -9644,10 +9644,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shaka-player@npm:^5.0.1":
-  version: 5.0.1
-  resolution: "shaka-player@npm:5.0.1"
-  checksum: 10c0/ba88b41e427a237eac0460cc7eb2a687ec5aea16274ed1022e7eeffc886a57299b3836c2ebad1d3e0cf8b9fa13c43478fa843f85c8d1f26b3d37bdb009487aca
+"shaka-player@npm:^4.7.9":
+  version: 4.16.17
+  resolution: "shaka-player@npm:4.16.17"
+  checksum: 10c0/757018d9784db17e1b5567958cb15d816a77ce765b5d952d61e8283e2c3799f131ae4cdd75eeedb394a3c50d283a71640d44ccc3755c431516ab7669e8877cf3
   languageName: node
   linkType: hard
 

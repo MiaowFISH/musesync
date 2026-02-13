@@ -128,35 +128,6 @@ export interface HealthCheckResult {
 }
 
 // ============================================================================
-// Error Codes
-// ============================================================================
-
-export const API_ERROR_CODES = {
-  // Search errors
-  INVALID_KEYWORD: 'INVALID_KEYWORD',
-  
-  // Song errors
-  SONG_NOT_FOUND: 'SONG_NOT_FOUND',
-  INVALID_TRACK_ID: 'INVALID_TRACK_ID',
-  
-  // Audio errors
-  AUDIO_NOT_AVAILABLE: 'AUDIO_NOT_AVAILABLE',
-  QUALITY_NOT_AVAILABLE: 'QUALITY_NOT_AVAILABLE',
-  REGION_RESTRICTED: 'REGION_RESTRICTED',
-  
-  // Rate limiting
-  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
-  
-  // NetEase API errors
-  NETEASE_API_ERROR: 'NETEASE_API_ERROR',
-  NETEASE_API_TIMEOUT: 'NETEASE_API_TIMEOUT',
-  
-  // Server errors
-  INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
-  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
-} as const;
-
-// ============================================================================
 // Type Guards
 // ============================================================================
 
