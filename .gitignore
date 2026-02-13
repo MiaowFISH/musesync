@@ -71,3 +71,9 @@ web-build/
 # Expo
 /app/android
 /app/ios
+
+# Turbo Repo
+.turbo/
+
+# Claude Code
+.claude/

@@ -8,10 +8,15 @@
     "shared"
   ],
   "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:app": "turbo run dev --filter=app",
+    "dev:backend": "turbo run dev --filter=backend",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "oxfmt": "^0.32.0",
