@@ -4,12 +4,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  THEME: '@musictogether:theme',
-  VOLUME: '@musictogether:volume',
-  AUTO_PLAY: '@musictogether:auto_play',
-  API_URL: '@musictogether:api_url',
-  USERNAME: '@musictogether:username',
-  DEVICE_ID: '@musictogether:device_id',
+  THEME: '@musesync:theme',
+  VOLUME: '@musesync:volume',
+  AUTO_PLAY: '@musesync:auto_play',
+  API_URL: '@musesync:api_url',
+  USERNAME: '@musesync:username',
+  DEVICE_ID: '@musesync:device_id',
 } as const;
 
 export interface PreferencesData {

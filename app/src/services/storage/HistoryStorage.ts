@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Track } from '@shared/types/entities';
 
-const HISTORY_KEY = '@musictogether:history';
+const HISTORY_KEY = '@musesync:history';
 const MAX_HISTORY_SIZE = 100;
 
 export interface HistoryTrack extends Track {

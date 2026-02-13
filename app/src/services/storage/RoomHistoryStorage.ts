@@ -3,8 +3,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CREATED_ROOMS_KEY = '@musictogether:created_rooms';
-const JOINED_ROOMS_KEY = '@musictogether:joined_rooms';
+const CREATED_ROOMS_KEY = '@musesync:created_rooms';
+const JOINED_ROOMS_KEY = '@musesync:joined_rooms';
 const MAX_HISTORY_ITEMS = 10;
 
 export interface RoomHistoryItem {

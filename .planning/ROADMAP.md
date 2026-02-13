@@ -1,4 +1,4 @@
-# Roadmap: MusicTogether
+# Roadmap: MuseSync
 
 ## Overview
 

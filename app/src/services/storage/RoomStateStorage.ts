@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Room } from '@shared/types/entities';
 
-const ROOM_STATE_KEY = '@musictogether:room_state';
+const ROOM_STATE_KEY = '@musesync:room_state';
 
 export interface RoomStateData {
   room: Room | null;

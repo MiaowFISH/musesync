@@ -1,13 +1,13 @@
 # Project Research Summary
 
-**Project:** MusicTogether
+**Project:** MuseSync
 **Domain:** Real-time synchronized music playback (multi-client)
 **Researched:** 2026-02-14
 **Confidence:** MEDIUM
 
 ## Executive Summary
 
-MusicTogether is a real-time music synchronization app that enables multiple users to listen to music together in perfect sync. The next milestone focuses on six incremental features that enhance the existing React Native/Expo/Socket.io foundation: drift compensation, background playback, playlist management, network recovery, host-only control mode, and light theme support.
+MuseSync is a real-time music synchronization app that enables multiple users to listen to music together in perfect sync. The next milestone focuses on six incremental features that enhance the existing React Native/Expo/Socket.io foundation: drift compensation, background playback, playlist management, network recovery, host-only control mode, and light theme support.
 
 The recommended approach leverages the existing stack extensively. Most features require no new dependencies - drift compensation uses Track Player's built-in rate adjustment API, playlist sync extends existing Socket.io patterns, and theme switching builds on the current theme infrastructure. Only network monitoring requires a new dependency (@react-native-community/netinfo). The architecture follows established patterns: client-side Zustand stores, Socket.io event broadcasting, and Last-Write-Wins conflict resolution.
 

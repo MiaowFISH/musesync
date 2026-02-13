@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SEARCH_HISTORY_KEY = '@musictogether:search_history';
+const SEARCH_HISTORY_KEY = '@musesync:search_history';
 const MAX_HISTORY_ITEMS = 20;
 
 export interface SearchHistoryItem {

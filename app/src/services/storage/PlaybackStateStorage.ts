@@ -4,7 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Track } from '@shared/types/entities';
 
-const PLAYBACK_STATE_KEY = '@musictogether:playback_state';
+const PLAYBACK_STATE_KEY = '@musesync:playback_state';
 
 export interface PlaybackState {
   track: Track | null;

@@ -1,4 +1,4 @@
-# Requirements: MusicTogether
+# Requirements: MuseSync
 
 **Defined:** 2026-02-14
 **Core Value:** 多设备之间的播放状态实时同步 — 一个人按下播放，所有人同时听到音乐。

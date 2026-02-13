@@ -3,8 +3,8 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'MusicTogether',
-  slug: 'musictogether',
+  name: 'MuseSync',
+  slug: 'musesync',
   version: '0.1.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -17,7 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   assetBundlePatterns: ['**/*'],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.musictogether.app',
+    bundleIdentifier: 'com.musesync.app',
     infoPlist: {
       UIBackgroundModes: ['audio'],
     },
@@ -27,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#1a1a2e',
     },
-    package: 'com.musictogether.app',
+    package: 'com.musesync.app',
     permissions: ['FOREGROUND_SERVICE'],
   },
   web: {

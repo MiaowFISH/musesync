@@ -1,4 +1,4 @@
-# MusicTogether
+# MuseSync
 
 ## What This Is
 
@@ -22,7 +22,7 @@
 2. 大部分歌曲需要会员才能播放，限制使用
 3. 部分平台同步精度和稳定性不佳
 
-MusicTogether 通过统一音源 + 高精度时间同步算法 + 跨平台客户端解决这些问题。
+MuseSync 通过统一音源 + 高精度时间同步算法 + 跨平台客户端解决这些问题。
 
 ## Requirements
 

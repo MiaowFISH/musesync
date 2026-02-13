@@ -5,7 +5,7 @@
 ## Directory Layout
 
 ```
-musictogether/
+musesync/
 ├── app/                          # React Native mobile/web frontend (Expo)
 │   ├── src/
 │   │   ├── components/           # UI components

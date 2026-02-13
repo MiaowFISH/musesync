@@ -1,6 +1,6 @@
 # Technology Stack - Milestone Additions
 
-**Project:** MusicTogether
+**Project:** MuseSync
 **Researched:** 2026-02-14
 **Confidence:** MEDIUM (based on existing stack analysis + training data, web tools unavailable)
 
