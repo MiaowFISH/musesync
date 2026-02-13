@@ -268,8 +268,6 @@ interface PreferencesState {
   preferences: LocalPreferences | null;
   setPreferences: (preferences: LocalPreferences) => void;
   updateTheme: (theme: LocalPreferences['theme']) => void;
-  updateEQPreset: (presetId: string | null) => void;
-  toggleEQ: () => void;
   clear: () => void;
 }
 
@@ -289,27 +287,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updateEQPreset = useCallback((presetId: string | null) => {
-    setPreferencesState((prev) => {
-      if (!prev) return prev;
-      return { ...prev, currentEQPresetId: presetId };
-    });
-  }, []);
-
-  const toggleEQ = useCallback(() => {
-    setPreferencesState((prev) => {
-      if (!prev) return prev;
-      return { ...prev, eqEnabled: !prev.eqEnabled };
-    });
-  }, []);
-
   const clear = useCallback(() => {
     setPreferencesState(null);
   }, []);
 
   return (
     <PreferencesContext.Provider
-      value={{ preferences, setPreferences, updateTheme, updateEQPreset, toggleEQ, clear }}
+      value={{ preferences, setPreferences, updateTheme, clear }}
     >
       {children}
     </PreferencesContext.Provider>

@@ -32,17 +32,14 @@ export const useThemeManager = () => {
       if (!preferences || preferences.theme !== savedTheme) {
         const defaultPreferences: typeof preferences = {
           theme: 'system',
-          eqEnabled: false,
-          currentEQPresetId: null,
-          customEQPresets: [],
           playbackHistory: [],
           recentRooms: [],
           username: '',
           audioQualityPreference: 'auto',
         };
-        setPreferences({ 
-          ...(preferences || defaultPreferences), 
-          theme: savedTheme 
+        setPreferences({
+          ...(preferences || defaultPreferences),
+          theme: savedTheme
         });
       }
     };
@@ -56,17 +53,14 @@ export const useThemeManager = () => {
     await preferencesStorage.setTheme(newTheme);
     const defaultPreferences: typeof preferences = {
       theme: 'system',
-      eqEnabled: false,
-      currentEQPresetId: null,
-      customEQPresets: [],
       playbackHistory: [],
       recentRooms: [],
       username: '',
       audioQualityPreference: 'auto',
     };
-    setPreferences({ 
-      ...(preferences || defaultPreferences), 
-      theme: newTheme 
+    setPreferences({
+      ...(preferences || defaultPreferences),
+      theme: newTheme
     });
   };
 

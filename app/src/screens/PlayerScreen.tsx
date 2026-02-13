@@ -647,13 +647,6 @@ export default function PlayerScreen() {
     }
   };
 
-  /**
-   * Navigate to EQ screen
-   */
-  const handleOpenEQ = () => {
-    navigation.navigate('EQ');
-  };
-
   // Loading state
   if (isLoadingTrack) {
     return (
@@ -712,13 +705,7 @@ export default function PlayerScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.eqButton}
-          onPress={handleOpenEQ}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.eqButtonText, { color: theme.colors.primary }]}>EQ</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight} />
       </View>
 
       {/* Album Art or Lyrics */}
@@ -954,15 +941,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 2,
   },
-  eqButton: {
+  headerRight: {
     width: 44,
-    height: 44,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  eqButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   albumArtContainer: {
     alignItems: 'center',

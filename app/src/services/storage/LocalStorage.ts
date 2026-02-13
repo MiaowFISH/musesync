@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@shared/constants';
-import type { LocalPreferences, EQPreset } from '@shared/types/entities';
+import type { LocalPreferences } from '@shared/types/entities';
 
 /**
  * LocalStorage Service
@@ -82,32 +82,6 @@ export class LocalStorageService {
       return true;
     } catch (error) {
       console.error('[LocalStorage] Failed to save device ID:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get custom EQ presets
-   */
-  async getCustomEQPresets(): Promise<EQPreset[]> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EQ_PRESETS);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('[LocalStorage] Failed to get EQ presets:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Save custom EQ presets
-   */
-  async saveCustomEQPresets(presets: EQPreset[]): Promise<boolean> {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_EQ_PRESETS, JSON.stringify(presets));
-      return true;
-    } catch (error) {
-      console.error('[LocalStorage] Failed to save EQ presets:', error);
       return false;
     }
   }

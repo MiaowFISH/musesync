@@ -410,7 +410,7 @@ export const HomeScreen: React.FC = () => {
       <Card style={styles.card}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>单人模式</Text>
         <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>
-          搜索并播放音乐，调节EQ音效
+          搜索并播放音乐
         </Text>
         <Button 
           title="搜索音乐" 

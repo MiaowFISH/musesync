@@ -12,7 +12,6 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { RoomScreen } from '../screens/RoomScreen';
 import PlayerScreen from '../screens/PlayerScreen';
 import SearchScreen from '../screens/SearchScreen';
-import { EQScreen } from '../screens/EQScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import { MiniPlayer } from '../components/player/MiniPlayer';
@@ -22,7 +21,6 @@ export type RootStackParamList = {
   Room: { roomId: string; room?: Room; userId?: string };
   Player: { trackId: string; track?: Track };
   Search: undefined;
-  EQ: undefined;
   History: undefined;
   Settings: undefined;
 };
@@ -54,7 +52,6 @@ export const AppNavigator: React.FC = () => {
           <Stack.Screen name="Room" component={RoomScreen} />
           <Stack.Screen name="Player" component={PlayerScreen} />
           <Stack.Screen name="Search" component={SearchScreen} />
-          <Stack.Screen name="EQ" component={EQScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
         </Stack.Navigator>

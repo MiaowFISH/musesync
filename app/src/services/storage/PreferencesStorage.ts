@@ -5,8 +5,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
   THEME: '@musictogether:theme',
-  EQ_SETTINGS: '@musictogether:eq_settings',
-  LAST_PRESET: '@musictogether:last_preset',
   VOLUME: '@musictogether:volume',
   AUTO_PLAY: '@musictogether:auto_play',
   API_URL: '@musictogether:api_url',
@@ -16,10 +14,6 @@ const KEYS = {
 
 export interface PreferencesData {
   theme: 'light' | 'dark' | 'system';
-  eqSettings?: {
-    bands: number[]; // 10 bands gain values
-    presetName: string;
-  };
   volume: number; // 0-1
   autoPlay: boolean;
 }
@@ -50,31 +44,6 @@ class PreferencesStorage {
       await AsyncStorage.setItem(KEYS.THEME, theme);
     } catch (error) {
       console.error('[PreferencesStorage] Set theme error:', error);
-    }
-  }
-
-  /**
-   * Get EQ settings
-   */
-  async getEQSettings(): Promise<{ bands: number[]; presetName: string } | null> {
-    try {
-      const value = await AsyncStorage.getItem(KEYS.EQ_SETTINGS);
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error('[PreferencesStorage] Get EQ settings error:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Set EQ settings
-   */
-  async setEQSettings(bands: number[], presetName: string): Promise<void> {
-    try {
-      const data = { bands, presetName };
-      await AsyncStorage.setItem(KEYS.EQ_SETTINGS, JSON.stringify(data));
-    } catch (error) {
-      console.error('[PreferencesStorage] Set EQ settings error:', error);
     }
   }
 
@@ -200,16 +169,14 @@ class PreferencesStorage {
    * Get all preferences
    */
   async getAll(): Promise<PreferencesData> {
-    const [theme, eqSettings, volume, autoPlay] = await Promise.all([
+    const [theme, volume, autoPlay] = await Promise.all([
       this.getTheme(),
-      this.getEQSettings(),
       this.getVolume(),
       this.getAutoPlay(),
     ]);
 
     return {
       theme,
-      eqSettings: eqSettings || undefined,
       volume,
       autoPlay,
     };

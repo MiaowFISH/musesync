@@ -12,7 +12,7 @@ export interface Room {
   currentTrack: Track | null;
   currentTrackIndex: number;
   syncState: SyncState;
-  controlMode: 'open' | 'host-only';
+  controlMode: 'open' | 'host-only' | 'queue';
   createdAt: number;
   lastActivityAt: number;
 }
@@ -65,26 +65,11 @@ export interface User {
 }
 
 /**
- * EQPreset entity - 10-band equalizer preset
- */
-export interface EQPreset {
-  presetId: string;
-  name: string;
-  bands: number[]; // length 10, range -12 to +12 dB
-  isBuiltIn: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-/**
  * LocalPreferences entity - client-side user preferences
  * Stored in AsyncStorage (mobile) or LocalStorage (web)
  */
 export interface LocalPreferences {
   theme: 'dark' | 'light' | 'system';
-  currentEQPresetId: string | null;
-  eqEnabled: boolean;
-  customEQPresets: EQPreset[];
   playbackHistory: Track[];
   recentRooms: { roomId: string; joinedAt: number }[];
   username: string;
@@ -117,19 +102,11 @@ export const Validators = {
   username: (username: string): boolean => {
     return username.length >= 1 && username.length <= 20;
   },
-  
-  eqBandValue: (value: number): boolean => {
-    return value >= -12 && value <= 12;
-  },
-  
-  eqBands: (bands: number[]): boolean => {
-    return bands.length === 10 && bands.every(Validators.eqBandValue);
-  },
-  
+
   volume: (volume: number): boolean => {
     return volume >= 0 && volume <= 1;
   },
-  
+
   playbackRate: (rate: number): boolean => {
     return rate > 0 && rate <= 2;
   },

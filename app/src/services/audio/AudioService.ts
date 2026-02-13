@@ -152,30 +152,6 @@ export class AudioService {
   }
 
   /**
-   * Get audio context for EQ connection
-   * Note: Only available on web platform
-   */
-  getAudioContext(): AudioContext | null {
-    return this.implementation.getAudioContext();
-  }
-
-  /**
-   * Get source node for EQ connection
-   * Note: Only available on web platform
-   */
-  getSourceNode(): MediaElementAudioSourceNode | null {
-    return this.implementation.getSourceNode();
-  }
-
-  /**
-   * Get gain node for volume control
-   * Note: Only available on web platform
-   */
-  getGainNode(): GainNode | null {
-    return this.implementation.getGainNode();
-  }
-
-  /**
    * Set progress callback
    */
   onProgress(callback: (position: number) => void): void {

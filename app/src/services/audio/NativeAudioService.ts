@@ -351,30 +351,4 @@ export class NativeAudioService {
     }
   }
 
-  /**
-   * Get audio context for EQ connection
-   * Note: Not available on native platforms
-   */
-  getAudioContext(): AudioContext | null {
-    console.warn('[NativeAudioService] AudioContext not available on native platforms');
-    return null;
-  }
-
-  /**
-   * Get source node for EQ connection
-   * Note: Not available on native platforms
-   */
-  getSourceNode(): MediaElementAudioSourceNode | null {
-    console.warn('[NativeAudioService] SourceNode not available on native platforms');
-    return null;
-  }
-
-  /**
-   * Get gain node for volume control
-   * Note: Not available on native platforms
-   */
-  getGainNode(): GainNode | null {
-    console.warn('[NativeAudioService] GainNode not available on native platforms');
-    return null;
-  }
 }

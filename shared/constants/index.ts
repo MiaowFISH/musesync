@@ -112,23 +112,13 @@ export const ROOM_CONFIG = {
  * Audio Configuration
  */
 export const AUDIO_CONFIG = {
-  /** Number of EQ bands */
-  EQ_BANDS: 10,
-  
-  /** EQ gain range (dB) */
-  EQ_MIN_GAIN: -12,
-  EQ_MAX_GAIN: 12,
-  
-  /** EQ band center frequencies (Hz) */
-  EQ_FREQUENCIES: [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const,
-  
   /** Volume range */
   MIN_VOLUME: 0,
   MAX_VOLUME: 1,
-  
+
   /** Available audio quality levels */
   QUALITY_LEVELS: ['standard', 'higher', 'exhigh', 'lossless'] as const,
-  
+
   /** Audio URL refresh threshold (5 minutes before expiry) */
   AUDIO_URL_REFRESH_THRESHOLD_MS: 300000,
 } as const;
@@ -177,10 +167,7 @@ export const PERFORMANCE_TARGETS = {
   
   /** Maximum playback drift */
   MAX_DRIFT_MS: 50,
-  
-  /** EQ CPU usage target */
-  EQ_CPU_TARGET_PERCENT: 15,
-  
+
   /** Memory usage target */
   MEMORY_TARGET_MB: 200,
 } as const;
@@ -213,64 +200,9 @@ export const STORAGE_KEYS = {
   LOCAL_PREFERENCES: 'musictogether:preferences',
   PLAYBACK_HISTORY: 'musictogether:history',
   RECENT_ROOMS: 'musictogether:recent_rooms',
-  CUSTOM_EQ_PRESETS: 'musictogether:eq_presets',
-  USER_ID: 'musictogether:user_id',
   DEVICE_ID: 'musictogether:device_id',
+  USER_ID: 'musictogether:user_id',
 } as const;
-
-/**
- * Built-in EQ Presets
- */
-export const BUILTIN_EQ_PRESETS = [
-  {
-    presetId: 'flat',
-    name: 'Flat',
-    bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'bass-boost',
-    name: 'Bass Boost',
-    bands: [8, 6, 4, 2, 0, 0, 0, 0, 0, 0],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'treble-boost',
-    name: 'Treble Boost',
-    bands: [0, 0, 0, 0, 0, 0, 2, 4, 6, 8],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'pop',
-    name: 'Pop',
-    bands: [-1, 2, 4, 4, 2, 0, -1, -1, 2, 3],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'rock',
-    name: 'Rock',
-    bands: [5, 3, -2, -3, -1, 2, 4, 5, 5, 5],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'classical',
-    name: 'Classical',
-    bands: [4, 3, -1, -2, -2, -1, 0, 1, 3, 4],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'jazz',
-    name: 'Jazz',
-    bands: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
-    isBuiltIn: true,
-  },
-  {
-    presetId: 'vocal',
-    name: 'Vocal',
-    bands: [-2, -1, 1, 3, 4, 4, 3, 1, 0, -1],
-    isBuiltIn: true,
-  },
-] as const;
 
 /**
  * API Endpoints (NetEase Cloud Music API)
@@ -282,6 +214,13 @@ export const API_ENDPOINTS = {
   LYRIC: '/lyric',
   PLAYLIST_DETAIL: '/playlist/detail',
 } as const;
+
+/**
+ * Type exports for compile-time safety
+ */
+export type SocketEventName = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];
+export type QualityLevel = typeof AUDIO_CONFIG.QUALITY_LEVELS[number];
+export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
 
 /**
  * Error Codes
@@ -338,4 +277,3 @@ export const API_ERROR_CODES = {
 export type SocketEventName = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];
 export type QualityLevel = typeof AUDIO_CONFIG.QUALITY_LEVELS[number];
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
-export type EQPresetId = typeof BUILTIN_EQ_PRESETS[number]['presetId'];
