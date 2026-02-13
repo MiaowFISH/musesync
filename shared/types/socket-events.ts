@@ -18,6 +18,8 @@ export interface SocketEvents {
   'room:left': (data: RoomLeftResponse) => void;
   'room:member_left': (data: MemberLeftEvent) => void;
   'room:control_mode_changed': (data: ControlModeChangedEvent) => void;
+  'room:rejoin': (data: RoomRejoinRequest) => void;
+  'room:state_snapshot': (data: RoomStateSnapshot) => void;
 
   // Sync & playback
   'sync:play': (data: SyncPlayRequest) => void;
@@ -51,6 +53,7 @@ export interface RoomCreateRequest {
   username: string;
   deviceId: string;
   deviceType: 'ios' | 'android' | 'web';
+  clientId: string;
 }
 
 export interface RoomJoinRequest {
@@ -59,6 +62,23 @@ export interface RoomJoinRequest {
   username: string;
   deviceId: string;
   deviceType: 'ios' | 'android' | 'web';
+  clientId: string;
+}
+
+export interface RoomRejoinRequest {
+  roomId: string;
+  userId: string;
+  clientId: string;
+  username: string;
+  deviceId: string;
+  deviceType: 'ios' | 'android' | 'web';
+}
+
+export interface RoomStateSnapshot {
+  room: Room;
+  syncState: SyncState;
+  currentTrack: Track | null;
+  serverTimestamp: number;
 }
 
 export interface RoomLeaveRequest {

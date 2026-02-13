@@ -7,15 +7,29 @@ import type {
   RoomJoinRequest,
   RoomCreatedResponse,
   RoomJoinedResponse,
+  RoomStateSnapshot,
 } from '@shared/types/socket-events';
 import { roomStore } from './RoomStore';
 import { ROOM_CONFIG, VALIDATION, ERROR_CODES } from '@shared/constants';
+
+interface ClientConnection {
+  clientId: string;
+  socketId: string;
+  userId: string;
+  roomId: string;
+  connectedAt: number;
+  gracePeriodTimer?: ReturnType<typeof setTimeout>;
+}
 
 /**
  * Room Manager Service
  * Handles all room-related business logic
  */
 export class RoomManager {
+  private clientConnections: Map<string, ClientConnection> = new Map();
+  private pendingReconnections: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly GRACE_PERIOD_MS = 2500;
+  private readonly BATCH_RECONNECT_WINDOW_MS = 3000;
   /**
    * Create a new room
    */
@@ -38,6 +52,7 @@ export class RoomManager {
       // Create initial user
       const hostUser: User = {
         userId: request.userId,
+        clientId: request.clientId,
         username: request.username,
         deviceId: request.deviceId,
         deviceType: request.deviceType,
@@ -139,6 +154,7 @@ export class RoomManager {
       const existingMember = room.members.find((m) => m.userId === request.userId);
       if (existingMember) {
         // User reconnecting, update their info
+        existingMember.clientId = request.clientId;
         existingMember.socketId = ''; // Will be updated by Socket.io handler
         existingMember.connectionState = 'connected';
         existingMember.lastSeenAt = Date.now();
@@ -148,6 +164,7 @@ export class RoomManager {
         // New member joining
         const newUser: User = {
           userId: request.userId,
+          clientId: request.clientId,
           username: request.username,
           deviceId: request.deviceId,
           deviceType: request.deviceType,
@@ -323,6 +340,117 @@ export class RoomManager {
   updateRoom(roomId: string, room: Room): void {
     roomStore.updateRoom(roomId, room);
     roomStore.touchRoom(roomId);
+  }
+
+  /**
+   * Handle client reconnection with grace period for old socket
+   */
+  handleReconnection(clientId: string, newSocketId: string, userId: string, roomId: string, io: any): void {
+    const existing = this.clientConnections.get(clientId);
+
+    if (existing) {
+      // Clear any existing grace period timer
+      if (existing.gracePeriodTimer) {
+        clearTimeout(existing.gracePeriodTimer);
+      }
+
+      const oldSocketId = existing.socketId;
+
+      // Set grace period timer to disconnect old socket
+      const gracePeriodTimer = setTimeout(() => {
+        const oldSocket = io.sockets?.sockets?.get(oldSocketId);
+        if (oldSocket) {
+          oldSocket.disconnect(true);
+        }
+      }, this.GRACE_PERIOD_MS);
+
+      // Update mapping to new socketId immediately
+      existing.socketId = newSocketId;
+      existing.gracePeriodTimer = gracePeriodTimer;
+    } else {
+      // New connection
+      this.clientConnections.set(clientId, {
+        clientId,
+        socketId: newSocketId,
+        userId,
+        roomId,
+        connectedAt: Date.now(),
+      });
+    }
+
+    // Update the User's socketId and clientId in the room's member list
+    const room = roomStore.getRoom(roomId);
+    if (room) {
+      const member = room.members.find((m) => m.userId === userId);
+      if (member) {
+        member.socketId = newSocketId;
+        member.clientId = clientId;
+        member.connectionState = 'connected';
+        member.lastSeenAt = Date.now();
+        roomStore.updateRoom(roomId, room);
+      }
+    }
+
+    // Schedule batch broadcast to prevent broadcast storms
+    if (!this.pendingReconnections.has(roomId)) {
+      const timer = setTimeout(() => {
+        this.pendingReconnections.delete(roomId);
+        // Broadcast updated room state to all members
+        const currentRoom = roomStore.getRoom(roomId);
+        if (currentRoom) {
+          io.to(roomId).emit('room:updated', { room: currentRoom });
+        }
+      }, this.BATCH_RECONNECT_WINDOW_MS);
+      this.pendingReconnections.set(roomId, timer);
+    }
+  }
+
+  /**
+   * Get full state snapshot for reconnection
+   */
+  getFullStateSnapshot(roomId: string): RoomStateSnapshot | null {
+    const room = roomStore.getRoom(roomId);
+    if (!room) return null;
+
+    return {
+      room,
+      syncState: room.syncState,
+      currentTrack: room.currentTrack,
+      serverTimestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Find connection by socket ID (used by disconnect handler)
+   */
+  findConnectionBySocketId(socketId: string): ClientConnection | undefined {
+    for (const connection of this.clientConnections.values()) {
+      if (connection.socketId === socketId) {
+        return connection;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Check if socketId is the current connection for a clientId
+   */
+  isCurrentSocket(clientId: string, socketId: string): boolean {
+    const connection = this.clientConnections.get(clientId);
+    return connection?.socketId === socketId;
+  }
+
+  /**
+   * Remove a client connection and clean up timers
+   */
+  removeConnection(clientId: string): void {
+    const connection = this.clientConnections.get(clientId);
+    if (connection) {
+      if (connection.gracePeriodTimer) {
+        clearTimeout(connection.gracePeriodTimer);
+      }
+      this.clientConnections.delete(clientId);
+    }
   }
 }
 

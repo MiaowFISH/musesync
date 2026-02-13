@@ -1,11 +1,12 @@
 // backend/src/handlers/roomHandlers.ts
 // Socket.io event handlers for room operations
 
-import type { Socket } from 'socket.io';
+import type { Socket, Server as SocketIOServer } from 'socket.io';
 import type {
   RoomCreateRequest,
   RoomJoinRequest,
   RoomLeaveRequest,
+  RoomRejoinRequest,
 } from '@shared/types/socket-events';
 import { roomManager } from '../services/room/RoomManager';
 import { syncEngine } from '../services/sync/SyncEngine';
@@ -13,7 +14,7 @@ import { syncEngine } from '../services/sync/SyncEngine';
 /**
  * Register room-related Socket.io event handlers
  */
-export function registerRoomHandlers(socket: Socket) {
+export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
   /**
    * Handle room:create event
    */
@@ -34,6 +35,9 @@ export function registerRoomHandlers(socket: Socket) {
 
         // Start heartbeat
         syncEngine.startHeartbeat(roomId, request.userId, socket.id);
+
+        // Register connection mapping
+        roomManager.handleReconnection(request.clientId, socket.id, request.userId, roomId, io);
 
         console.log(`[RoomHandlers] Room created: ${roomId}`);
       }
@@ -72,6 +76,9 @@ export function registerRoomHandlers(socket: Socket) {
 
         // Start heartbeat
         syncEngine.startHeartbeat(roomId, request.userId, socket.id);
+
+        // Register connection mapping
+        roomManager.handleReconnection(request.clientId, socket.id, request.userId, roomId, io);
 
         // Send current sync state to the new member
         const room = roomManager.getRoom(roomId);
@@ -168,44 +175,95 @@ export function registerRoomHandlers(socket: Socket) {
   });
 
   /**
-   * Handle disconnect event
+   * Handle room:rejoin event (reconnection)
+   */
+  socket.on('room:rejoin', (request: RoomRejoinRequest, callback: any) => {
+    try {
+      console.log(`[RoomHandlers] Rejoin room ${request.roomId} request from ${request.userId}`);
+
+      // Verify room exists
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
+      // Check if user is a member (by userId)
+      const member = room.members.find((m: any) => m.userId === request.userId);
+      if (!member) {
+        callback({ success: false, error: 'Not a member of this room' });
+        return;
+      }
+
+      // Handle reconnection (updates socketId, sets grace period for old socket)
+      roomManager.handleReconnection(request.clientId, socket.id, request.userId, request.roomId, io);
+
+      // Join Socket.io room
+      socket.join(request.roomId);
+
+      // Start heartbeat
+      syncEngine.startHeartbeat(request.roomId, request.userId, socket.id);
+
+      // Send full state snapshot
+      const snapshot = roomManager.getFullStateSnapshot(request.roomId);
+      if (snapshot) {
+        socket.emit('room:state_snapshot', snapshot);
+      }
+
+      callback({ success: true, room });
+      console.log(`[RoomHandlers] ${request.userId} rejoined room ${request.roomId}`);
+    } catch (error) {
+      console.error('[RoomHandlers] Error in room:rejoin:', error);
+      callback({ success: false, error: 'Failed to rejoin room' });
+    }
+  });
+
+  /**
+   * Handle disconnect event — uses clientId mapping instead of scanning all rooms
    */
   socket.on('disconnect', () => {
     console.log(`[RoomHandlers] Socket ${socket.id} disconnected`);
-    
-    // Find all rooms this socket is in and remove the user
-    const rooms = roomManager.getAllRooms();
-    for (const room of rooms) {
-      const member = room.members.find(m => m.socketId === socket.id);
-      if (member) {
-        console.log(`[RoomHandlers] Removing ${member.userId} from room ${room.roomId} due to disconnect`);
-        
-        const result = roomManager.leaveRoom(room.roomId, member.userId);
-        
-        // Stop heartbeat
-        syncEngine.stopHeartbeat(`${room.roomId}:${member.userId}`);
-        
-        if (result.deleted) {
-          // Room deleted, cleanup
-          syncEngine.cleanupRoom(room.roomId);
-          console.log(`[RoomHandlers] Room ${room.roomId} deleted (no members)`);
-        } else {
-          // Get updated room
-          const updatedRoom = roomManager.getRoom(room.roomId);
-          
-          // Broadcast member left to remaining members with updated room data
-          socket.to(room.roomId).emit('member:left', {
-            userId: member.userId,
-            newHostId: result.newHostId,
-            room: updatedRoom,
-          });
-          
-          if (result.newHostId) {
-            console.log(`[RoomHandlers] ${member.userId} disconnected from room ${room.roomId}, host transferred to ${result.newHostId}`);
-          } else {
-            console.log(`[RoomHandlers] ${member.userId} disconnected from room ${room.roomId}`);
-          }
-        }
+
+    // Find connection by socketId
+    const connection = roomManager.findConnectionBySocketId(socket.id);
+    if (!connection) {
+      return;
+    }
+
+    // Check if this socketId is still the CURRENT one for this clientId
+    // If a newer connection already replaced it, do nothing — grace period will clean up
+    if (!roomManager.isCurrentSocket(connection.clientId, socket.id)) {
+      console.log(`[RoomHandlers] Stale socket ${socket.id} for clientId ${connection.clientId}, skipping removal`);
+      return;
+    }
+
+    const { userId, roomId, clientId } = connection;
+    console.log(`[RoomHandlers] Removing ${userId} from room ${roomId} due to disconnect`);
+
+    const result = roomManager.leaveRoom(roomId, userId);
+
+    // Stop heartbeat
+    syncEngine.stopHeartbeat(`${roomId}:${userId}`);
+
+    // Remove connection tracking
+    roomManager.removeConnection(clientId);
+
+    if (result.deleted) {
+      syncEngine.cleanupRoom(roomId);
+      console.log(`[RoomHandlers] Room ${roomId} deleted (no members)`);
+    } else {
+      const updatedRoom = roomManager.getRoom(roomId);
+
+      socket.to(roomId).emit('member:left', {
+        userId,
+        newHostId: result.newHostId,
+        room: updatedRoom,
+      });
+
+      if (result.newHostId) {
+        console.log(`[RoomHandlers] ${userId} disconnected from room ${roomId}, host transferred to ${result.newHostId}`);
+      } else {
+        console.log(`[RoomHandlers] ${userId} disconnected from room ${roomId}`);
       }
     }
   });

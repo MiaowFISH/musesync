@@ -53,6 +53,7 @@ export interface SyncState {
  */
 export interface User {
   userId: string;
+  clientId: string;
   username: string;
   deviceId: string;
   deviceType: 'ios' | 'android' | 'web';

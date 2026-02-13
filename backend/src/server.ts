@@ -73,7 +73,7 @@ io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
 
   // Register room handlers (create, join, leave)
-  registerRoomHandlers(socket);
+  registerRoomHandlers(socket, io);
 
   // Register sync handlers (play, pause, seek, time sync)
   registerSyncHandlers(socket);
