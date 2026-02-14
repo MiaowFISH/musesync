@@ -1,14 +1,16 @@
 // app/src/components/queue/QueueBottomSheet.tsx
 // Main queue bottom sheet with drag-drop list
 
-import React, { useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList, Platform } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { useTheme } from '../../hooks/useTheme';
 import { QueueItem } from './QueueItem';
 import { EmptyQueueState } from './EmptyQueueState';
 import type { Track } from '@shared/types/entities';
+
+const isWeb = Platform.OS === 'web';
 
 interface QueueBottomSheetProps {
   playlist: Track[];
@@ -38,19 +40,61 @@ export const QueueBottomSheet: React.FC<QueueBottomSheetProps> = ({
   const theme = useTheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['12%', '50%', '90%'], []);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<Track>) => {
+  // Reorderable range: only tracks after currentTrackIndex
+  const firstReorderableIndex = currentTrackIndex + 1;
+  const lastReorderableIndex = playlist.length - 1;
+
+  const handleMoveUp = useCallback((index: number) => {
+    if (index > firstReorderableIndex) {
+      onReorder(index, index - 1);
+    }
+  }, [firstReorderableIndex, onReorder]);
+
+  const handleMoveDown = useCallback((index: number) => {
+    if (index < lastReorderableIndex) {
+      onReorder(index, index + 1);
+    }
+  }, [lastReorderableIndex, onReorder]);
+
+  const renderDraggableItem = ({ item, drag, isActive, getIndex }: RenderItemParams<Track>) => {
     const index = getIndex() ?? -1;
     const isCurrentTrack = index === currentTrackIndex;
+    const canReorder = index > currentTrackIndex;
     return (
       <QueueItem
         track={item}
         index={index}
         isCurrentTrack={isCurrentTrack}
         isActive={isActive}
+        isFirst={!canReorder || index === firstReorderableIndex}
+        isLast={index === lastReorderableIndex}
         onDelete={onRemove}
         onPress={onTrackPress}
-        drag={drag}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
+        drag={canReorder ? drag : () => {}}
+      />
+    );
+  };
+
+  const renderWebItem = ({ item, index }: { item: Track; index: number }) => {
+    const isCurrentTrack = index === currentTrackIndex;
+    const canReorder = index > currentTrackIndex;
+    return (
+      <QueueItem
+        track={item}
+        index={index}
+        isCurrentTrack={isCurrentTrack}
+        isActive={false}
+        isFirst={!canReorder || index === firstReorderableIndex}
+        isLast={index === lastReorderableIndex}
+        onDelete={onRemove}
+        onPress={onTrackPress}
+        onMoveUp={handleMoveUp}
+        onMoveDown={handleMoveDown}
+        drag={() => {}}
       />
     );
   };
@@ -95,17 +139,30 @@ export const QueueBottomSheet: React.FC<QueueBottomSheetProps> = ({
       return <EmptyQueueState onAddSong={onAddSong} />;
     }
 
+    if (isWeb) {
+      return (
+        <FlatList
+          data={playlist}
+          renderItem={renderWebItem}
+          keyExtractor={(item, index) => (item as any).queueId || item.trackId || `track-${index}`}
+          style={{ backgroundColor: theme.colors.background }}
+        />
+      );
+    }
+
     return (
       <DraggableFlatList
         data={playlist}
-        renderItem={renderItem}
+        renderItem={renderDraggableItem}
         keyExtractor={(item, index) => (item as any).queueId || item.trackId || `track-${index}`}
-        onDragEnd={({ data, from, to }) => {
+        onDragBegin={() => setIsDragging(true)}
+        onDragEnd={({ from, to }) => {
+          setIsDragging(false);
           if (from !== to) {
             onReorder(from, to);
           }
         }}
-        activationDistance={10}
+        activationDistance={15}
         containerStyle={{ backgroundColor: theme.colors.background }}
       />
     );
@@ -117,6 +174,8 @@ export const QueueBottomSheet: React.FC<QueueBottomSheetProps> = ({
       index={0}
       snapPoints={snapPoints}
       enablePanDownToClose={false}
+      enableContentPanningGesture={!isDragging}
+      enableHandlePanningGesture={!isDragging}
       backgroundStyle={{ backgroundColor: theme.colors.surface }}
       handleIndicatorStyle={{ backgroundColor: theme.colors.border }}
     >

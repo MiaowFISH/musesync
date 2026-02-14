@@ -1,19 +1,25 @@
 // app/src/components/queue/QueueItem.tsx
-// Individual queue item with swipe-to-delete and drag handle
+// Individual queue item with platform-adaptive interactions
 
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useTheme } from '../../hooks/useTheme';
 import type { Track } from '@shared/types/entities';
+
+const isWeb = Platform.OS === 'web';
 
 interface QueueItemProps {
   track: Track & { queueId?: string; addedByUsername?: string };
   index: number;
   isCurrentTrack: boolean;
   isActive: boolean;
+  isFirst: boolean;
+  isLast: boolean;
   onDelete: (trackId: string, queueId: string) => void;
   onPress: (track: Track, index: number) => void;
+  onMoveUp?: (index: number) => void;
+  onMoveDown?: (index: number) => void;
   drag: () => void;
 }
 
@@ -29,21 +35,15 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
   index,
   isCurrentTrack,
   isActive,
+  isFirst,
+  isLast,
   onDelete,
   onPress,
+  onMoveUp,
+  onMoveDown,
   drag,
 }) => {
   const theme = useTheme();
-
-  const renderRightActions = () => (
-    <TouchableOpacity
-      style={[styles.deleteButton, { backgroundColor: theme.colors.error }]}
-      onPress={() => onDelete(track.trackId, track.queueId || track.trackId)}
-      activeOpacity={0.8}
-    >
-      <Text style={[styles.deleteText, { color: '#FFFFFF' }]}>删除</Text>
-    </TouchableOpacity>
-  );
 
   const containerStyle = [
     styles.container,
@@ -64,13 +64,33 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
     },
   ];
 
-  return (
-    <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
-      <TouchableOpacity
-        style={containerStyle}
-        onPress={() => onPress(track, index)}
-        activeOpacity={0.7}
-      >
+  const itemContent = (
+    <TouchableOpacity
+      style={containerStyle}
+      onPress={() => onPress(track, index)}
+      activeOpacity={0.7}
+    >
+      {/* Drag handle (native) or reorder buttons (web) */}
+      {isWeb ? (
+        <View style={styles.webActions}>
+          <TouchableOpacity
+            style={[styles.webActionBtn, isFirst && styles.webActionBtnDisabled]}
+            onPress={() => !isFirst && onMoveUp?.(index)}
+            disabled={isFirst}
+            activeOpacity={0.6}
+          >
+            <Text style={[styles.webActionText, { color: isFirst ? theme.colors.border : theme.colors.textSecondary }]}>▲</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.webActionBtn, isLast && styles.webActionBtnDisabled]}
+            onPress={() => !isLast && onMoveDown?.(index)}
+            disabled={isLast}
+            activeOpacity={0.6}
+          >
+            <Text style={[styles.webActionText, { color: isLast ? theme.colors.border : theme.colors.textSecondary }]}>▼</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
         <TouchableOpacity
           style={styles.dragHandle}
           onLongPress={drag}
@@ -79,46 +99,78 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
         >
           <Text style={[styles.dragIcon, { color: theme.colors.textSecondary }]}>≡</Text>
         </TouchableOpacity>
+      )}
 
-        {track.coverUrl ? (
-          <Image
-            source={{ uri: track.coverUrl }}
-            style={[styles.cover, { borderRadius: theme.borderRadius.sm }]}
-          />
-        ) : (
-          <View style={[styles.cover, styles.placeholderCover, { borderRadius: theme.borderRadius.sm, backgroundColor: theme.colors.border }]}>
-            <Text style={[styles.placeholderIcon, { color: theme.colors.textSecondary }]}>♪</Text>
-          </View>
+      {track.coverUrl ? (
+        <Image
+          source={{ uri: track.coverUrl }}
+          style={[styles.cover, { borderRadius: theme.borderRadius.sm }]}
+        />
+      ) : (
+        <View style={[styles.cover, styles.placeholderCover, { borderRadius: theme.borderRadius.sm, backgroundColor: theme.colors.border }]}>
+          <Text style={[styles.placeholderIcon, { color: theme.colors.textSecondary }]}>♪</Text>
+        </View>
+      )}
+
+      <View style={styles.info}>
+        <Text
+          style={[styles.title, { color: theme.colors.text }]}
+          numberOfLines={1}
+        >
+          {track.title}
+        </Text>
+        <Text
+          style={[styles.artist, { color: theme.colors.textSecondary }]}
+          numberOfLines={1}
+        >
+          {track.artist}
+        </Text>
+      </View>
+
+      <View style={styles.metadata}>
+        <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
+          {formatDuration(track.duration)}
+        </Text>
+        {track.addedByUsername && (
+          <Text style={[styles.addedBy, { color: theme.colors.textSecondary }]}>
+            {track.addedByUsername}
+          </Text>
         )}
+      </View>
 
-        <View style={styles.info}>
-          <Text
-            style={[styles.title, { color: theme.colors.text }]}
-            numberOfLines={1}
-          >
-            {track.title}
-          </Text>
-          <Text
-            style={[styles.artist, { color: theme.colors.textSecondary }]}
-            numberOfLines={1}
-          >
-            {track.artist}
-          </Text>
-        </View>
-
-        <View style={styles.metadata}>
-          <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
-            {formatDuration(track.duration)}
-          </Text>
-          {track.addedByUsername && (
-            <Text style={[styles.addedBy, { color: theme.colors.textSecondary }]}>
-              {track.addedByUsername}
-            </Text>
-          )}
-        </View>
-      </TouchableOpacity>
-    </Swipeable>
+      {/* Web: inline delete button */}
+      {isWeb && (
+        <TouchableOpacity
+          style={[styles.webDeleteBtn, { backgroundColor: theme.colors.error }]}
+          onPress={() => onDelete(track.trackId, track.queueId || track.trackId)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.webDeleteText}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
   );
+
+  // Native: wrap with Swipeable for swipe-to-delete
+  if (!isWeb) {
+    const renderRightActions = () => (
+      <TouchableOpacity
+        style={[styles.deleteButton, { backgroundColor: theme.colors.error }]}
+        onPress={() => onDelete(track.trackId, track.queueId || track.trackId)}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.deleteText, { color: '#FFFFFF' }]}>删除</Text>
+      </TouchableOpacity>
+    );
+
+    return (
+      <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
+        {itemContent}
+      </Swipeable>
+    );
+  }
+
+  return itemContent;
 });
 
 QueueItem.displayName = 'QueueItem';
@@ -139,6 +191,34 @@ const styles = StyleSheet.create({
   },
   dragIcon: {
     fontSize: 20,
+    fontWeight: '600',
+  },
+  webActions: {
+    flexDirection: 'column',
+    marginRight: 4,
+    gap: 2,
+  },
+  webActionBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  webActionBtnDisabled: {
+    opacity: 0.3,
+  },
+  webActionText: {
+    fontSize: 10,
+  },
+  webDeleteBtn: {
+    marginLeft: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webDeleteText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '600',
   },
   cover: {
