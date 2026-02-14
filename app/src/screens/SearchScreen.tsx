@@ -24,6 +24,8 @@ import type { SearchSong } from '@shared/types/api';
 import type { SearchHistoryItem } from '../services/storage/SearchHistoryStorage';
 import { useRoomStore } from '../stores';
 import { syncService } from '../services/sync/SyncService';
+import { queueService } from '../services/queue/QueueService';
+import type { Track } from '@shared/types/entities';
 
 type NavigationProp = NativeStackNavigationProp<any>;
 
@@ -42,6 +44,9 @@ export default function SearchScreen() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [deviceId, setDeviceId] = useState<string>('');
+  const [addingToQueue, setAddingToQueue] = useState<Record<string, boolean>>({});
+  const [addedToQueue, setAddedToQueue] = useState<Record<string, boolean>>({});
+  const [roomPlaylist, setRoomPlaylist] = useState<Track[]>([]);
 
   // Load search history on mount
   useEffect(() => {
@@ -55,6 +60,15 @@ export default function SearchScreen() {
       versionRef.current = roomStore.room.syncState.version;
     }
   }, [roomStore.room?.syncState?.version]);
+
+  // Sync room playlist for duplicate detection
+  useEffect(() => {
+    if (roomStore.room?.playlist) {
+      setRoomPlaylist(roomStore.room.playlist);
+    } else {
+      setRoomPlaylist([]);
+    }
+  }, [roomStore.room?.playlist]);
 
   const loadSearchHistory = async () => {
     const history = await searchHistoryStorage.getHistory();
@@ -180,6 +194,61 @@ export default function SearchScreen() {
     [navigation, play, roomStore.room, deviceId]
   );
 
+  const handleAddToQueue = useCallback(async (song: SearchSong) => {
+    if (!roomStore.room || !deviceId) return;
+
+    // Set loading state
+    setAddingToQueue(prev => ({ ...prev, [song.trackId]: true }));
+
+    try {
+      // Get audio URL first
+      const audioResponse = await musicApi.getAudioUrl(song.trackId, { quality: 'exhigh' });
+      if (!audioResponse.success || !audioResponse.data) {
+        toast.error('Failed to get audio URL');
+        return;
+      }
+
+      const track: Track = {
+        trackId: song.trackId,
+        title: song.title,
+        artist: song.artist,
+        album: song.album || '',
+        coverUrl: song.coverUrl || '',
+        duration: song.duration,
+        audioUrl: audioResponse.data.audioUrl,
+        audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+        quality: 'exhigh',
+        addedBy: deviceId,
+        addedAt: Date.now(),
+      };
+
+      const username = roomStore.room.members.find(m => m.userId === deviceId)?.username || 'Unknown';
+
+      const result = await queueService.add({
+        roomId: roomStore.room.roomId,
+        userId: deviceId,
+        username,
+        track,
+      });
+
+      if (result.success) {
+        // Show checkmark animation
+        setAddedToQueue(prev => ({ ...prev, [song.trackId]: true }));
+        // Reset after 2 seconds
+        setTimeout(() => {
+          setAddedToQueue(prev => ({ ...prev, [song.trackId]: false }));
+        }, 2000);
+      } else {
+        toast.error(result.error || 'Failed to add to queue');
+      }
+    } catch (err) {
+      console.error('[SearchScreen] Add to queue error:', err);
+      toast.error('Failed to add to queue');
+    } finally {
+      setAddingToQueue(prev => ({ ...prev, [song.trackId]: false }));
+    }
+  }, [roomStore.room, deviceId]);
+
   const handleHistoryPress = (keyword: string) => {
     setSearchText(keyword);
     performSearch(keyword);
@@ -234,6 +303,30 @@ export default function SearchScreen() {
         <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
           {formatDuration(item.duration)}
         </Text>
+        {roomStore.room && (
+          <View style={styles.addButtonContainer}>
+            {roomPlaylist.some(t => t.trackId === item.trackId) ? (
+              <Text style={[styles.inQueueText, { color: theme.colors.textSecondary }]}>
+                已在队列
+              </Text>
+            ) : addingToQueue[item.trackId] ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : addedToQueue[item.trackId] ? (
+              <Text style={[styles.addedText, { color: '#4CAF50' }]}>✓</Text>
+            ) : (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleAddToQueue(item);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={[styles.addButtonText, { color: theme.colors.primary }]}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -481,6 +574,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minWidth: 40,
     textAlign: 'right',
+    marginBottom: 4,
+  },
+  addButtonContainer: {
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  addedText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  inQueueText: {
+    fontSize: 12,
   },
   emptyState: {
     flex: 1,
