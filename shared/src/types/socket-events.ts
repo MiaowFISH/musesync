@@ -19,7 +19,7 @@ export interface SocketEvents {
   "room:member_left": (data: MemberLeftEvent) => void;
   "room:control_mode_changed": (data: ControlModeChangedEvent) => void;
   "room:rejoin": (data: RoomRejoinRequest) => void;
-  "room:state_snapshot": (data: RoomStateSnapshot) => void;
+  "room:state_snapshot": (data: RoomStateSnapshotRequest, callback: (response: RoomStateSnapshotResponse) => void) => void;
 
   // Sync & playback
   "sync:play": (data: SyncPlayRequest) => void;
@@ -84,6 +84,22 @@ export interface RoomStateSnapshot {
   syncState: SyncState;
   currentTrack: Track | null;
   serverTimestamp: number;
+}
+
+export interface RoomStateSnapshotRequest {
+  roomId: string;
+  userId: string;
+}
+
+export interface RoomStateSnapshotResponse {
+  success: boolean;
+  room?: Room;
+  syncState?: SyncState;
+  playlist?: Track[];
+  currentTrackIndex?: number;
+  loopMode?: 'none' | 'queue';
+  serverTimestamp: number;
+  error?: string;
 }
 
 export interface RoomLeaveRequest {
