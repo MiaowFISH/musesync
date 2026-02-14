@@ -13,6 +13,7 @@ import { preferencesStorage } from '../services/storage/PreferencesStorage';
 import { musicApi } from '../services/api/MusicApi';
 import { usePlayer } from '../hooks/usePlayer';
 import { toast } from '../components/common/Toast';
+import { suppressAutoAdvance } from '../hooks/useQueueSync';
 import { QueueItem } from '../components/queue/QueueItem';
 import { EmptyQueueState } from '../components/queue/EmptyQueueState';
 import type { Track } from '@shared/types/entities';
@@ -67,6 +68,7 @@ export default function QueueScreen() {
   const handleTrackPress = useCallback(async (track: Track, index: number) => {
     if (!isConnected || !roomId) return;
     if (index === currentTrackIndex) return;
+    suppressAutoAdvance();
     setIsLoading(true);
     try {
       const result = await queueService.jump({ roomId, userId: deviceId, targetIndex: index });

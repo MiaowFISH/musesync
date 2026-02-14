@@ -13,6 +13,19 @@ import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
 import type { QueueUpdatedEvent } from '@shared/types/socket-events';
 
+// Module-level flag so QueueScreen (which bypasses useQueueSync) can also
+// suppress auto-advance when it triggers a manual jump.
+let manualActionActive = false;
+let manualActionTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function suppressAutoAdvance() {
+  manualActionActive = true;
+  if (manualActionTimer) clearTimeout(manualActionTimer);
+  manualActionTimer = setTimeout(() => {
+    manualActionActive = false;
+  }, 500);
+}
+
 interface UseQueueSyncParams {
   roomId: string | undefined;
   userId: string;
@@ -115,6 +128,12 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
     const handleTrackEnd = async () => {
       console.log('[useQueueSync] Track ended, checking for auto-advance');
 
+      // Skip if a manual action (jump/seek) caused this onEnd
+      if (manualActionActive) {
+        console.log('[useQueueSync] Manual action in progress, skipping auto-advance');
+        return;
+      }
+
       // Debounce to prevent duplicate advance calls
       if (hasAdvancedRef.current) {
         console.log('[useQueueSync] Already advanced, skipping');
@@ -128,35 +147,37 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
         clearTimeout(advanceDebounceRef.current);
       }
 
-      // Reset the flag after 500ms
-      advanceDebounceRef.current = setTimeout(() => {
-        hasAdvancedRef.current = false;
-      }, 500);
+      try {
+        // Request advance from server
+        const result = await queueService.advance({
+          roomId,
+          userId,
+          direction: 'next',
+        });
 
-      // Request advance from server
-      const result = await queueService.advance({
-        roomId,
-        userId,
-        direction: 'next',
-      });
-
-      if (result.success) {
-        console.log('[useQueueSync] Auto-advance successful, index:', result.currentTrackIndex);
-        // Operator plays the new track themselves (sync:state skips own updates)
-        if (result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
-          const nextTrack = result.playlist[result.currentTrackIndex];
-          if (nextTrack) {
-            await fetchAndPlay(nextTrack);
+        if (result.success) {
+          console.log('[useQueueSync] Auto-advance successful, index:', result.currentTrackIndex);
+          // Operator plays the new track themselves (sync:state skips own updates)
+          if (result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
+            const nextTrack = result.playlist[result.currentTrackIndex];
+            if (nextTrack) {
+              await fetchAndPlay(nextTrack);
+            }
+          }
+        } else {
+          // Check if queue finished (currentTrackIndex === -1)
+          if (result.currentTrackIndex === -1) {
+            console.log('[useQueueSync] Queue finished');
+            toast.info('播放队列已结束');
+          } else {
+            console.error('[useQueueSync] Auto-advance failed:', result.error);
           }
         }
-      } else {
-        // Check if queue finished (currentTrackIndex === -1)
-        if (result.currentTrackIndex === -1) {
-          console.log('[useQueueSync] Queue finished');
-          toast.info('播放队列已结束');
-        } else {
-          console.error('[useQueueSync] Auto-advance failed:', result.error);
-        }
+      } finally {
+        // Reset after advance completes (success or failure)
+        advanceDebounceRef.current = setTimeout(() => {
+          hasAdvancedRef.current = false;
+        }, 300);
       }
     };
 
@@ -262,6 +283,8 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
       return;
     }
 
+    // Suppress auto-advance triggered by stopping current track
+    suppressAutoAdvance();
     setIsQueueLoading(true);
 
     try {
