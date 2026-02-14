@@ -64,10 +64,13 @@ Plans:
   4. App automatically reconnects and resyncs playback position after network recovery
   5. Stale state (older than 60s) is rejected and not propagated to other clients
   6. App reconciles sync state when returning to foreground after background playback
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 03-01: [To be planned]
+- [ ] 03-01-PLAN.md — State reconciliation foundation: StaleStateValidator, StateReconciler service, server heartbeat enforcement (60s), room:state_snapshot event (Wave 1)
+- [ ] 03-02-PLAN.md — Background playback & lifecycle: AppLifecycleManager, useAppLifecycle hook, lock screen skip controls, background sync suppression, foreground resync with Toast (Wave 2)
+- [ ] 03-03-PLAN.md — Network recovery & resilience: install NetInfo, NetworkMonitor service, useNetworkStatus hook, NetworkBanner component, enhanced SocketManager reconnection, offline playback behavior (Wave 2)
+- [ ] 03-04-PLAN.md — Manual verification: real device testing of background playback, lock screen controls, network disconnection/reconnection, stale state rejection (Wave 3)
 
 ### Phase 4: Control Modes
 **Goal**: Room creator can choose who controls playback (host-only, open, or queue mode)
@@ -94,5 +97,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes & Foundation | 3/3 | ✓ Complete | 2026-02-14 |
 | 2. Playlist Management | 5/5 | ✓ Complete | 2026-02-14 |
-| 3. Background Playback & Network Recovery | 0/TBD | Not started | - |
+| 3. Background Playback & Network Recovery | 0/4 | In progress | - |
 | 4. Control Modes | 0/TBD | Not started | - |
