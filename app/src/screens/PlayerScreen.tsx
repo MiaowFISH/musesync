@@ -16,6 +16,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
 import { usePlayer } from '../hooks/usePlayer';
+import { useQueueSync } from '../hooks/useQueueSync';
 import { musicApi } from '../services/api/MusicApi';
 import { historyStorage } from '../services/storage/HistoryStorage';
 import { preferencesStorage } from '../services/storage/PreferencesStorage';
@@ -23,8 +24,9 @@ import { playbackStateStorage } from '../services/storage/PlaybackStateStorage';
 import { syncService } from '../services/sync/SyncService';
 import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
-import { useRoomStore } from '../stores';
+import { useRoomStore, useConnectionStore } from '../stores';
 import { PlayIcon } from '../components/common/PlayIcon';
+import { QueueBottomSheet } from '../components/queue/QueueBottomSheet';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = Math.min(SCREEN_WIDTH - 64, 320);
@@ -40,8 +42,9 @@ export default function PlayerScreen() {
   const theme = useTheme();
   const { trackId, track: initialTrack } = (route.params as RouteParams) || {};
   const roomStore = useRoomStore();
+  const connectionStore = useConnectionStore();
   const [deviceId, setDeviceId] = useState<string>('');
-  
+
   const [track, setTrack] = useState<Track | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioUrlExpiry, setAudioUrlExpiry] = useState<number>(0);
@@ -72,6 +75,22 @@ export default function PlayerScreen() {
     error: playerError,
     isLoading: isPlayerLoading,
   } = usePlayer();
+
+  const {
+    playlist,
+    currentTrackIndex,
+    loopMode,
+    isQueueLoading,
+    handleRemove,
+    handleReorder,
+    handleTrackPress,
+    handleLoopModeToggle,
+    handleAddSong,
+  } = useQueueSync({
+    roomId: roomStore.room?.roomId,
+    userId: deviceId,
+    isConnected: connectionStore.isConnected,
+  });
 
   // Load device ID on mount
   useEffect(() => {
@@ -898,6 +917,22 @@ export default function PlayerScreen() {
           {playerError}
         </Text>
       )}
+
+      {/* Queue Bottom Sheet */}
+      {roomStore.room && (
+        <QueueBottomSheet
+          playlist={playlist}
+          currentTrackIndex={currentTrackIndex}
+          loopMode={loopMode}
+          isLoading={isQueueLoading}
+          isConnected={connectionStore.isConnected}
+          onAddSong={handleAddSong}
+          onRemove={handleRemove}
+          onReorder={handleReorder}
+          onTrackPress={handleTrackPress}
+          onLoopModeToggle={handleLoopModeToggle}
+        />
+      )}
     </View>
   );
 }
@@ -907,7 +942,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 32,
     paddingTop: 16,
-    paddingBottom: 32,
+    paddingBottom: 100,
   },
   header: {
     flexDirection: 'row',
