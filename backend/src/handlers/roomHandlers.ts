@@ -140,6 +140,13 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
     try {
       console.log(`[RoomHandlers] Leave room ${request.roomId} request from ${request.userId}`);
 
+      // Find and remove the client connection to prevent disconnect handler from processing this user again
+      const connection = roomManager.findConnectionBySocketId(socket.id);
+      if (connection) {
+        roomManager.removeConnection(connection.clientId);
+        console.log(`[RoomHandlers] Removed client connection for ${connection.clientId}`);
+      }
+
       const result = roomManager.leaveRoom(request.roomId, request.userId);
 
       // Leave Socket.io room
@@ -155,7 +162,7 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       } else {
         // Get updated room
         const updatedRoom = roomManager.getRoom(request.roomId);
-        
+
         // Broadcast member left to remaining members with updated room data
         socket.to(request.roomId).emit('member:left', {
           userId: request.userId,

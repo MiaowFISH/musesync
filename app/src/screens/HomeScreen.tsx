@@ -29,6 +29,7 @@ export const HomeScreen: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isRejoining, setIsRejoining] = useState(false);
   const [createdRooms, setCreatedRooms] = useState<RoomHistoryItem[]>([]);
   const [joinedRooms, setJoinedRooms] = useState<RoomHistoryItem[]>([]);
   const [deviceId, setDeviceId] = useState<string>('');
@@ -237,6 +238,59 @@ export const HomeScreen: React.FC = () => {
     setJoinedRooms(joined);
   };
 
+  const handleRejoinCachedRoom = async () => {
+    if (!roomStore.room) {
+      toast.error('没有缓存的房间');
+      return;
+    }
+
+    if (!username.trim()) {
+      toast.error('请输入用户名');
+      return;
+    }
+
+    if (!socketManager.isConnected()) {
+      toast.error('未连接到服务器，请检查网络和API设置');
+      return;
+    }
+
+    if (!deviceId) {
+      toast.error('设备ID未初始化');
+      return;
+    }
+
+    setIsRejoining(true);
+    try {
+      const result = await roomService.rejoinRoom({
+        roomId: roomStore.room.roomId,
+        userId: deviceId,
+        username: username.trim(),
+        deviceId: deviceId,
+        deviceType: Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android',
+      });
+
+      if (result.success && result.room) {
+        toast.success(`已重新加入房间: ${result.room.roomId}`);
+        navigation.navigate('Room', {
+          roomId: result.room.roomId,
+          room: result.room,
+          userId: deviceId
+        });
+      } else {
+        toast.error(result.error || '重新加入房间失败');
+        // Clear stale cache on rejoin failure
+        roomStore.clear();
+      }
+    } catch (error) {
+      console.error('[HomeScreen] Rejoin room error:', error);
+      toast.error('重新加入房间失败');
+      // Clear stale cache on error
+      roomStore.clear();
+    } finally {
+      setIsRejoining(false);
+    }
+  };
+
   return (
     <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -274,14 +328,11 @@ export const HomeScreen: React.FC = () => {
               {roomStore.room.members.length} 人在线
             </Text>
           </View>
-          <Button 
-            title="进入房间"
-            onPress={() => navigation.navigate('Room', { 
-              roomId: roomStore.room!.roomId, 
-              room: roomStore.room!,
-              userId: deviceId 
-            })}
+          <Button
+            title={isRejoining ? '重新加入中...' : '进入房间'}
+            onPress={handleRejoinCachedRoom}
             style={{ marginTop: spacing.md }}
+            disabled={isRejoining || !username.trim()}
           />
         </Card>
       ) : (
