@@ -1,30 +1,28 @@
 // app/src/services/audio/NativeAudioService.ts
-// Native audio service using react-native-track-player for iOS and Android
+// Native audio service using expo-audio for iOS and Android
 
-import TrackPlayer, {
-  Event,
-  State,
-  Capability,
-  AppKilledPlaybackBehavior,
-} from 'react-native-track-player';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import type { Track } from '@shared/types/entities';
 import { AUDIO_CONFIG } from '@shared/constants';
 
 /**
  * Audio Service for Native platforms (iOS/Android)
- * Uses react-native-track-player for optimized native playback
+ * Uses expo-audio for native playback with new architecture support
  */
 export class NativeAudioService {
+  private player: AudioPlayer | null = null;
   private currentTrack: Track | null = null;
   private onProgressCallback: ((position: number) => void) | null = null;
   private onEndCallback: (() => void) | null = null;
   private isSetup = false;
-  private volume = 1;
-  private playbackRate = 1;
+  private _volume = 1;
+  private _playbackRate = 1;
+  private progressInterval: ReturnType<typeof setInterval> | null = null;
+  private statusSubscription: { remove: () => void } | null = null;
+  private lastReportedPlaying = false;
 
   /**
-   * Setup Track Player
-   * Must be called before using any player functions
+   * Initialize expo-audio player
    */
   async initialize(): Promise<void> {
     if (this.isSetup) {
@@ -32,41 +30,10 @@ export class NativeAudioService {
     }
 
     try {
-      // Check if player is already set up
-      try {
-        await TrackPlayer.getActiveTrackIndex();
-        this.isSetup = true;
-        console.log('[NativeAudioService] Track Player already initialized');
-        return;
-      } catch {
-        // Player not set up, continue with initialization
-      }
-
-      // Setup the player
-      await TrackPlayer.setupPlayer();
-
-      // Configure player options
-      await TrackPlayer.updateOptions({
-        android: {
-          appKilledPlaybackBehavior: AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
-        },
-        capabilities: [
-          Capability.Play,
-          Capability.Pause,
-          Capability.Stop,
-          Capability.SeekTo,
-          Capability.SkipToNext,
-          Capability.SkipToPrevious,
-        ],
-        compactCapabilities: [
-          Capability.Play,
-          Capability.Pause,
-        ],
-        progressUpdateEventInterval: 0.1, // Update every 100ms
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
       });
-
-      // Setup event listeners
-      this.setupEventListeners();
 
       this.isSetup = true;
       console.log('[NativeAudioService] Initialized successfully');
@@ -77,29 +44,55 @@ export class NativeAudioService {
   }
 
   /**
-   * Setup event listeners for track player events
+   * Setup status listener on the player to detect playback end
    */
-  private setupEventListeners(): void {
-    // Listen for playback state changes
-    TrackPlayer.addEventListener(Event.PlaybackState, async (data) => {
-      if (data.state === State.Ended) {
-        if (this.onEndCallback) {
+  private setupStatusListener(): void {
+    if (!this.player) return;
+
+    // Clean up previous subscription
+    this.statusSubscription?.remove();
+
+    this.statusSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
+      const isPlaying = status.playing;
+
+      // Detect transition from playing to not-playing at end of track
+      if (this.lastReportedPlaying && !isPlaying && !this.player?.paused) {
+        // Check if we're at the end (currentTime ~= duration)
+        const atEnd = this.player &&
+          this.player.duration > 0 &&
+          this.player.currentTime >= this.player.duration - 0.5;
+
+        if (atEnd && this.onEndCallback) {
+          console.log('[NativeAudioService] Track ended');
           this.onEndCallback();
         }
       }
-    });
 
-    // Listen for progress updates
-    TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (data) => {
-      if (this.onProgressCallback && data.position !== undefined) {
-        this.onProgressCallback(data.position);
+      this.lastReportedPlaying = isPlaying;
+    });
+  }
+
+  /**
+   * Start progress polling
+   */
+  private startProgressPolling(): void {
+    this.stopProgressPolling();
+
+    this.progressInterval = setInterval(() => {
+      if (this.player && this.onProgressCallback && !this.player.paused) {
+        this.onProgressCallback(this.player.currentTime);
       }
-    });
+    }, 100); // 100ms interval
+  }
 
-    // Listen for errors
-    TrackPlayer.addEventListener(Event.PlaybackError, (data) => {
-      console.error('[NativeAudioService] Playback error:', data);
-    });
+  /**
+   * Stop progress polling
+   */
+  private stopProgressPolling(): void {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
   }
 
   /**
@@ -111,24 +104,36 @@ export class NativeAudioService {
     }
 
     try {
-      // Reset the queue and add the new track
-      await TrackPlayer.reset();
-      await TrackPlayer.add({
-        id: track.trackId,
-        url: audioUrl,
+      // Release previous player
+      if (this.player) {
+        this.statusSubscription?.remove();
+        this.statusSubscription = null;
+        this.player.release();
+        this.player = null;
+      }
+
+      // Create new player with the audio URL
+      this.player = createAudioPlayer({ uri: audioUrl });
+
+      // Configure player
+      this.player.volume = this._volume;
+      this.player.playbackRate = this._playbackRate;
+
+      // Setup lock screen metadata
+      this.player.setActiveForLockScreen(true);
+      this.player.updateLockScreenMetadata({
         title: track.title,
         artist: track.artist,
-        album: track.album,
-        artwork: track.coverUrl,
-        duration: track.duration / 1000, // Convert milliseconds to seconds
+        artworkUrl: track.coverUrl ?? undefined,
       });
 
-      // Set volume and playback rate
-      await TrackPlayer.setVolume(this.volume);
-      await TrackPlayer.setRate(this.playbackRate);
+      // Setup listeners
+      this.setupStatusListener();
+      this.startProgressPolling();
+      this.lastReportedPlaying = false;
 
       // Start playback
-      await TrackPlayer.play();
+      this.player.play();
 
       this.currentTrack = track;
       console.log('[NativeAudioService] Playing:', track.title);
@@ -142,13 +147,13 @@ export class NativeAudioService {
    * Pause playback
    */
   async pause(): Promise<void> {
-    if (!this.isSetup) {
+    if (!this.player) {
       console.warn('[NativeAudioService] Player not initialized');
       return;
     }
 
     try {
-      await TrackPlayer.pause();
+      this.player.pause();
       console.log('[NativeAudioService] Paused');
     } catch (error) {
       console.error('[NativeAudioService] Pause error:', error);
@@ -159,12 +164,12 @@ export class NativeAudioService {
    * Resume playback
    */
   async resume(): Promise<void> {
-    if (!this.isSetup) {
+    if (!this.player) {
       throw new Error('Player not initialized. Please load a track first.');
     }
 
     try {
-      await TrackPlayer.play();
+      this.player.play();
       console.log('[NativeAudioService] Resumed');
     } catch (error) {
       console.error('[NativeAudioService] Resume error:', error);
@@ -176,19 +181,18 @@ export class NativeAudioService {
    * Seek to position (seconds)
    */
   async seek(positionSeconds: number): Promise<void> {
-    if (!this.isSetup) {
+    if (!this.player) {
       console.warn('[NativeAudioService] Player not initialized');
       return;
     }
 
-    // Validate position is a finite number
     if (!Number.isFinite(positionSeconds) || positionSeconds < 0) {
       console.warn('[NativeAudioService] Invalid seek position:', positionSeconds);
       return;
     }
 
     try {
-      await TrackPlayer.seekTo(positionSeconds);
+      this.player.seekTo(positionSeconds);
       console.log('[NativeAudioService] Seeked to:', positionSeconds);
     } catch (error) {
       console.error('[NativeAudioService] Seek error:', error);
@@ -199,53 +203,28 @@ export class NativeAudioService {
    * Get current position (seconds)
    */
   async getPosition(): Promise<number> {
-    if (!this.isSetup) {
-      return 0;
-    }
-
-    try {
-      const progress = await TrackPlayer.getProgress();
-      return progress.position;
-    } catch (error) {
-      console.error('[NativeAudioService] Get position error:', error);
-      return 0;
-    }
+    if (!this.player) return 0;
+    return this.player.currentTime;
   }
 
   /**
    * Get duration (seconds)
    */
   async getDuration(): Promise<number> {
-    if (!this.isSetup) {
-      return 0;
-    }
-
-    try {
-      const progress = await TrackPlayer.getProgress();
-      return progress.duration;
-    } catch (error) {
-      console.error('[NativeAudioService] Get duration error:', error);
-      return 0;
-    }
+    if (!this.player) return 0;
+    return this.player.duration;
   }
 
   /**
    * Set volume (0-1)
    */
   async setVolume(volume: number): Promise<void> {
-    if (!this.isSetup) {
-      console.warn('[NativeAudioService] Player not initialized');
-      return;
-    }
-
     const clampedVolume = Math.max(AUDIO_CONFIG.MIN_VOLUME, Math.min(AUDIO_CONFIG.MAX_VOLUME, volume));
-    this.volume = clampedVolume;
+    this._volume = clampedVolume;
 
-    try {
-      await TrackPlayer.setVolume(clampedVolume);
+    if (this.player) {
+      this.player.volume = clampedVolume;
       console.log('[NativeAudioService] Volume set to:', clampedVolume);
-    } catch (error) {
-      console.error('[NativeAudioService] Set volume error:', error);
     }
   }
 
@@ -253,18 +232,11 @@ export class NativeAudioService {
    * Set playback rate (for sync)
    */
   async setPlaybackRate(rate: number): Promise<void> {
-    if (!this.isSetup) {
-      console.warn('[NativeAudioService] Player not initialized');
-      return;
-    }
+    this._playbackRate = rate;
 
-    this.playbackRate = rate;
-
-    try {
-      await TrackPlayer.setRate(rate);
+    if (this.player) {
+      this.player.playbackRate = rate;
       console.log('[NativeAudioService] Playback rate set to:', rate);
-    } catch (error) {
-      console.error('[NativeAudioService] Set playback rate error:', error);
     }
   }
 
@@ -272,24 +244,15 @@ export class NativeAudioService {
    * Get playback rate
    */
   getPlaybackRate(): number {
-    return this.playbackRate;
+    return this._playbackRate;
   }
 
   /**
    * Check if playing
    */
   async isPlaying(): Promise<boolean> {
-    if (!this.isSetup) {
-      return false;
-    }
-
-    try {
-      const state = await TrackPlayer.getPlaybackState();
-      return state.state === State.Playing;
-    } catch (error) {
-      console.error('[NativeAudioService] Get playing state error:', error);
-      return false;
-    }
+    if (!this.player) return false;
+    return !this.player.paused;
   }
 
   /**
@@ -317,17 +280,17 @@ export class NativeAudioService {
    * Stop playback and reset
    */
   async stop(): Promise<void> {
-    if (!this.isSetup) {
-      return;
-    }
+    this.stopProgressPolling();
 
-    try {
-      await TrackPlayer.stop();
-      await TrackPlayer.reset();
-      this.currentTrack = null;
-      console.log('[NativeAudioService] Stopped');
-    } catch (error) {
-      console.error('[NativeAudioService] Stop error:', error);
+    if (this.player) {
+      try {
+        this.player.pause();
+        this.player.seekTo(0);
+        this.currentTrack = null;
+        console.log('[NativeAudioService] Stopped');
+      } catch (error) {
+        console.error('[NativeAudioService] Stop error:', error);
+      }
     }
   }
 
@@ -335,20 +298,23 @@ export class NativeAudioService {
    * Clean up resources
    */
   async dispose(): Promise<void> {
-    if (!this.isSetup) {
-      return;
+    this.stopProgressPolling();
+    this.statusSubscription?.remove();
+    this.statusSubscription = null;
+
+    if (this.player) {
+      try {
+        this.player.release();
+        this.player = null;
+      } catch (error) {
+        console.error('[NativeAudioService] Dispose error:', error);
+      }
     }
 
-    try {
-      await this.stop();
-      await TrackPlayer.reset();
-      this.onProgressCallback = null;
-      this.onEndCallback = null;
-      this.isSetup = false;
-      console.log('[NativeAudioService] Disposed');
-    } catch (error) {
-      console.error('[NativeAudioService] Dispose error:', error);
-    }
+    this.onProgressCallback = null;
+    this.onEndCallback = null;
+    this.currentTrack = null;
+    this.isSetup = false;
+    console.log('[NativeAudioService] Disposed');
   }
-
 }

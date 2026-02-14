@@ -23,8 +23,9 @@ const withGradlePlugin: ConfigPlugin = (config) => {
     // Enable Minify in Release Builds
     setProperty(properties, "minifyEnabled", "true");
 
-    // Disable newArchEnabled (react-native-track-player 4.x incompatible with Turbo Modules)
-    setProperty(properties, "newArchEnabled", "false");
+    // Enable newArchEnabled (required by react-native-reanimated 4.x)
+    // react-native-track-player removed in favor of expo-audio for compatibility
+    setProperty(properties, "newArchEnabled", "true");
 
     // Enable Hermes
     setProperty(properties, "hermesEnabled", "true");
