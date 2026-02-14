@@ -25,10 +25,7 @@
     "typescript": "^5.9.3"
   },
   "resolutions": {
-    "@expo/cli@npm:54.0.20": "patch:@expo/cli@npm%3A54.0.20#~/.yarn/patches/@expo-cli-npm-54.0.20-5db1021132.patch"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs}": "pnpm run lint"
+    "react-native-track-player": "patch:react-native-track-player@npm%3A4.1.2#.yarn/patches/react-native-track-player-npm-4.1.2-b3ddb100d7.patch"
   },
   "packageManager": "yarn@4.12.0"
 }
