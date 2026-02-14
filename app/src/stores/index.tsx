@@ -1,8 +1,9 @@
 // app/src/stores/index.tsx
 // React Context-based state management
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import type { Room, Track, SyncState, User, LocalPreferences } from '@shared/types/entities';
+import type { QueueUpdatedEvent } from '@shared/types/socket-events';
 import { playbackStateStorage } from '../services/storage/PlaybackStateStorage';
 import { roomStateStorage } from '../services/storage/RoomStateStorage';
 import { roomService } from '../services/sync/RoomService';
@@ -11,6 +12,12 @@ import { socketManager } from '../services/sync/SocketManager';
 /**
  * Room Store Context
  */
+interface QueueStateUpdate {
+  playlist: Track[];
+  currentTrackIndex: number;
+  loopMode?: 'none' | 'queue';
+}
+
 interface RoomState {
   room: Room | null;
   isHost: boolean;
@@ -18,6 +25,7 @@ interface RoomState {
   updateSyncState: (syncState: SyncState) => void;
   updatePlaylist: (playlist: Track[]) => void;
   updateCurrentTrackIndex: (index: number) => void;
+  updateQueueState: (update: QueueStateUpdate) => void;
   updateLoopMode: (loopMode: 'none' | 'queue') => void;
   addMember: (user: User) => void;
   removeMember: (userId: string) => void;
@@ -123,6 +131,22 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateQueueState = useCallback((update: QueueStateUpdate) => {
+    setRoomState((prev) => {
+      if (!prev) return prev;
+      const { playlist, currentTrackIndex, loopMode } = update;
+      return {
+        ...prev,
+        playlist,
+        currentTrackIndex,
+        currentTrack: currentTrackIndex >= 0 && currentTrackIndex < playlist.length
+          ? playlist[currentTrackIndex]
+          : null,
+        ...(loopMode !== undefined ? { loopMode } : {}),
+      };
+    });
+  }, []);
+
   const updateLoopMode = useCallback((loopMode: 'none' | 'queue') => {
     setRoomState((prev) => {
       if (!prev) return prev;
@@ -152,9 +176,33 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     roomStateStorage.clearState();
   }, []);
 
+  // Listen for queue:updated events at provider level so they're received
+  // regardless of which screen the user is on
+  useEffect(() => {
+    const socket = socketManager.getSocket();
+    if (!socket || !room?.roomId) return;
+
+    const handleQueueUpdated = (event: QueueUpdatedEvent) => {
+      if (event.roomId !== room.roomId) return;
+      console.log('[RoomProvider] queue:updated received:', event.operation);
+      updateQueueState({
+        playlist: event.playlist,
+        currentTrackIndex: event.currentTrackIndex,
+        loopMode: event.loopMode,
+      });
+    };
+
+    socket.on('queue:updated', handleQueueUpdated);
+    console.log('[RoomProvider] Registered queue:updated listener for room:', room.roomId);
+
+    return () => {
+      socket.off('queue:updated', handleQueueUpdated);
+    };
+  }, [room?.roomId, updateQueueState]);
+
   return (
     <RoomContext.Provider
-      value={{ room, isHost, setRoom, updateSyncState, updatePlaylist, updateCurrentTrackIndex, updateLoopMode, addMember, removeMember, clear }}
+      value={{ room, isHost, setRoom, updateSyncState, updatePlaylist, updateCurrentTrackIndex, updateQueueState, updateLoopMode, addMember, removeMember, clear }}
     >
       {children}
     </RoomContext.Provider>

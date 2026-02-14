@@ -47,7 +47,8 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
   const loopMode = roomStore.room?.loopMode || 'none';
 
   /**
-   * Socket listener for queue:updated events
+   * Toast notifications for queue:updated events from other users.
+   * The actual state update is handled by RoomProvider's queue:updated listener.
    */
   useEffect(() => {
     if (!roomId) return;
@@ -56,18 +57,7 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
     if (!socket) return;
 
     const handleQueueUpdated = (event: QueueUpdatedEvent) => {
-      console.log('[useQueueSync] queue:updated received:', event.operation);
-
-      // Update playlist
-      roomStore.updatePlaylist(event.playlist);
-
-      // Update current track index
-      roomStore.updateCurrentTrackIndex(event.currentTrackIndex);
-
-      // Update loop mode if present
-      if (event.loopMode !== undefined) {
-        roomStore.updateLoopMode(event.loopMode);
-      }
+      if (event.roomId !== roomId) return;
 
       // Show toast for OTHER users' operations (not own)
       if (event.operatorName && event.operatorName !== userId) {
@@ -85,24 +75,15 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
             break;
         }
       }
-
-      // Handle auto-advance: if operation is 'advance' and there's a new current track, trigger playback
-      if (event.operation === 'advance' && event.currentTrack && event.currentTrackIndex >= 0) {
-        console.log('[useQueueSync] Auto-advance: playing next track:', event.currentTrack.title);
-        // The play function will be called from the parent component (PlayerScreen)
-        // We just need to ensure the state is updated, which is already done above
-      }
     };
 
     socket.on('queue:updated', handleQueueUpdated);
-
-    console.log('[useQueueSync] Registered queue:updated listener for room:', roomId);
+    console.log('[useQueueSync] Registered queue:updated toast listener for room:', roomId);
 
     return () => {
       socket.off('queue:updated', handleQueueUpdated);
-      console.log('[useQueueSync] Unregistered queue:updated listener');
     };
-  }, [roomId, userId, roomStore]);
+  }, [roomId, userId]);
 
   /**
    * Auto-advance logic: listen for track end and request next track from server
