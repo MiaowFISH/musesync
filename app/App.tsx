@@ -8,6 +8,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { StoreProvider } from './src/stores';
 import { ToastContainer } from './src/components/common/Toast';
 import { NetworkBanner } from './src/components/common/NetworkBanner';
+import { AppLifecycleWatcher } from './src/components/lifecycle/AppLifecycleWatcher';
 import { networkMonitor } from './src/services/sync/NetworkMonitor';
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StoreProvider>
+        <AppLifecycleWatcher />
         <StatusBar style="auto" />
         <NetworkBanner />
         <AppNavigator />

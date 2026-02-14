@@ -94,6 +94,13 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
     const handleQueueUpdated = (event: QueueUpdatedEvent) => {
       if (event.roomId !== roomId) return;
 
+      // Skip toast if app is backgrounded
+      const { appLifecycleManager } = require('../services/lifecycle/AppLifecycleManager');
+      if (appLifecycleManager.isBackgrounded()) {
+        console.log('[useQueueSync] App backgrounded, skipping toast');
+        return;
+      }
+
       // Show toast for OTHER users' operations (not own)
       if (event.operatorName && event.operatorName !== userId) {
         switch (event.operation) {

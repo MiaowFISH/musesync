@@ -179,6 +179,24 @@ export class AudioService {
   }
 
   /**
+   * Set remote next callback (for lock screen skip next)
+   */
+  setOnRemoteNext(callback: (() => void) | null): void {
+    if (Platform.OS !== 'web') {
+      (this.implementation as NativeAudioService).setOnRemoteNext(callback);
+    }
+  }
+
+  /**
+   * Set remote previous callback (for lock screen skip previous)
+   */
+  setOnRemotePrevious(callback: (() => void) | null): void {
+    if (Platform.OS !== 'web') {
+      (this.implementation as NativeAudioService).setOnRemotePrevious(callback);
+    }
+  }
+
+  /**
    * Clean up resources
    */
   dispose(): void {

@@ -14,6 +14,8 @@ export class NativeAudioService {
   private currentTrack: Track | null = null;
   private onProgressCallback: ((position: number) => void) | null = null;
   private onEndCallbacks: Array<() => void> = [];
+  private onRemoteNextCallback: (() => void) | null = null;
+  private onRemotePreviousCallback: (() => void) | null = null;
   private isSetup = false;
   private _volume = 1;
   private _playbackRate = 1;
@@ -121,12 +123,13 @@ export class NativeAudioService {
       this.player.volume = this._volume;
       this.player.setPlaybackRate(this._playbackRate);
 
-      // Setup lock screen metadata
+      // Setup lock screen metadata with duration for progress bar
       this.player.setActiveForLockScreen(true);
       this.player.updateLockScreenMetadata({
         title: track.title,
         artist: track.artist,
         artworkUrl: track.coverUrl ?? undefined,
+        duration: track.duration,
       });
 
       // Setup listeners
@@ -301,6 +304,42 @@ export class NativeAudioService {
   }
 
   /**
+   * Set remote next callback (for lock screen skip next)
+   */
+  setOnRemoteNext(callback: (() => void) | null): void {
+    this.onRemoteNextCallback = callback;
+    console.log('[NativeAudioService] Remote next callback set');
+  }
+
+  /**
+   * Set remote previous callback (for lock screen skip previous)
+   */
+  setOnRemotePrevious(callback: (() => void) | null): void {
+    this.onRemotePreviousCallback = callback;
+    console.log('[NativeAudioService] Remote previous callback set');
+  }
+
+  /**
+   * Trigger remote next (called by external skip controls)
+   */
+  triggerRemoteNext(): void {
+    if (this.onRemoteNextCallback) {
+      console.log('[NativeAudioService] Triggering remote next');
+      this.onRemoteNextCallback();
+    }
+  }
+
+  /**
+   * Trigger remote previous (called by external skip controls)
+   */
+  triggerRemotePrevious(): void {
+    if (this.onRemotePreviousCallback) {
+      console.log('[NativeAudioService] Triggering remote previous');
+      this.onRemotePreviousCallback();
+    }
+  }
+
+  /**
    * Clean up resources
    */
   async dispose(): Promise<void> {
@@ -319,6 +358,8 @@ export class NativeAudioService {
 
     this.onProgressCallback = null;
     this.onEndCallbacks = [];
+    this.onRemoteNextCallback = null;
+    this.onRemotePreviousCallback = null;
     this.currentTrack = null;
     this.isSetup = false;
     console.log('[NativeAudioService] Disposed');

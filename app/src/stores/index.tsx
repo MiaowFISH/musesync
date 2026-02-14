@@ -184,6 +184,15 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 
     const handleQueueUpdated = (event: QueueUpdatedEvent) => {
       if (event.roomId !== room.roomId) return;
+
+      // Skip processing if app is backgrounded (per user decision: 后台时不响应房间同步事件)
+      // Import appLifecycleManager dynamically to avoid circular dependency
+      const { appLifecycleManager } = require('../services/lifecycle/AppLifecycleManager');
+      if (appLifecycleManager.isBackgrounded()) {
+        console.log('[RoomProvider] App backgrounded, skipping queue:updated event');
+        return;
+      }
+
       console.log('[RoomProvider] queue:updated received:', event.operation);
       updateQueueState({
         playlist: event.playlist,
