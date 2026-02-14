@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** 多设备之间的播放状态实时同步 — 一个人按下播放，所有人同时听到音乐。
-**Current focus:** Phase 2: Playlist Management — planning complete, ready for execution
+**Current focus:** Phase 2: Playlist Management — complete, pending verification
 
 ## Current Position
 
 Phase: 2 of 4 (Playlist Management)
-Plan: 4 of 5 completed (02-01 ✅, 02-02 ✅, 02-03 ✅, 02-04 ✅, 02-05 pending)
-Status: Executing Phase 2
-Last activity: 2026-02-14 — Plan 02-04 completed
+Plan: 5 of 5 completed (02-01 ✅, 02-02 ✅, 02-03 ✅, 02-04 ✅, 02-05 ✅)
+Status: Phase 2 complete, pending phase verification
+Last activity: 2026-02-14 — Plan 02-05 completed (manual verification + bug fixes)
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: ~3 min
 - Total execution time: ~1 session
 
@@ -28,10 +28,10 @@ Progress: [████████░░] 80%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 3/3 | 1 session | - |
-| 02 | 4/5 | 12 min | 3 min |
+| 02 | 5/5 | 17 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 ✅, 02-02 ✅, 02-03 ✅, 02-04 ✅
+- Last 5 plans: 02-02 ✅, 02-03 ✅, 02-04 ✅, 02-05 ✅
 - Trend: Consistent execution
 
 *Updated after each plan completion*
@@ -42,6 +42,7 @@ Progress: [████████░░] 80%
 | 02-02 | 3 min | 2 | 2 |
 | 02-03 | 3 min | 2 | 6 |
 | 02-04 | 3 min | 2 | 4 |
+| 02-05 | 5 min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Recent decisions affecting current work:
 - [Phase 02-04]: Auto-advance is client-triggered: first client to detect track end sends advance request to server
 - [Phase 02-04]: Toast notifications only for OTHER users' operations (not own) to avoid redundant feedback
 
+- [Phase 02-05]: Web uses FlatList with button controls instead of DraggableFlatList/Swipeable due to gesture conflicts
+- [Phase 02-05]: Mobile disables BottomSheet gestures during active drag to prevent collapse
+
 ### Pending Todos
 
 - Manual verification of Phase 1 bug fixes on real devices (Plan 01-03 Task 3)
@@ -77,6 +81,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-14 (Phase 2 execution)
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-02-14 (Phase 2 complete)
+Stopped at: Completed 02-05-PLAN.md — Phase 2 all plans done, pending phase verification
 Resume file: None
