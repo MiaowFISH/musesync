@@ -3214,6 +3214,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-community/netinfo@npm:11.4.1":
+  version: 11.4.1
+  resolution: "@react-native-community/netinfo@npm:11.4.1"
+  peerDependencies:
+    react-native: ">=0.59"
+  checksum: 10c0/118ba6d495bd14c2dab3d228a0c1857620a293ae8592d170d70eaf88a6ac6a4e35c7f84527975a9054e36891a9694aacc8ec053326b5f05961459ed08a70dd35
+  languageName: node
+  linkType: hard
+
 "@react-native/assets-registry@npm:0.81.5":
   version: 0.81.5
   resolution: "@react-native/assets-registry@npm:0.81.5"
@@ -4191,6 +4200,7 @@ __metadata:
     "@gorhom/bottom-sheet": "npm:^5.2.8"
     "@react-native-async-storage/async-storage": "npm:^2.2.0"
     "@react-native-community/cli": "npm:^20.0.2"
+    "@react-native-community/netinfo": "npm:11.4.1"
     "@react-navigation/native": "npm:^7.1.8"
     "@react-navigation/native-stack": "npm:^7.3.16"
     "@types/react": "npm:~19.1.10"
@@ -4213,7 +4223,6 @@ __metadata:
     react-native-screens: "npm:~4.16.0"
     react-native-web: "npm:^0.21.0"
     react-native-worklets: "npm:^0.7.3"
-    shaka-player: "npm:^4.7.9"
     socket.io-client: "npm:^4.8.3"
     typescript: "npm:~5.9.3"
   languageName: unknown
@@ -10101,13 +10110,6 @@ __metadata:
   version: 2.2.0
   resolution: "sf-symbols-typescript@npm:2.2.0"
   checksum: 10c0/3f3bbf33aaad19e619d6f169899b39e9fe9c5fd21f0d6d511100e36887606ad349109ddc6ff82933f2b8cbf437dd7105c2ae6b0059b291dc47f143b30c2074cc
-  languageName: node
-  linkType: hard
-
-"shaka-player@npm:^4.7.9":
-  version: 4.16.17
-  resolution: "shaka-player@npm:4.16.17"
-  checksum: 10c0/757018d9784db17e1b5567958cb15d816a77ce765b5d952d61e8283e2c3799f131ae4cdd75eeedb394a3c50d283a71640d44ccc3755c431516ab7669e8877cf3
   languageName: node
   linkType: hard
 
