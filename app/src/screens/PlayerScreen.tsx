@@ -122,6 +122,8 @@ export default function PlayerScreen() {
 
   /**
    * Load track details and audio URL
+   * Only runs on initial mount or when trackId route param changes.
+   * Queue advance updates are handled by the globalCurrentTrack sync effect above.
    */
   useEffect(() => {
     if (!trackId) {
@@ -129,16 +131,27 @@ export default function PlayerScreen() {
       return;
     }
 
+    // If globalCurrentTrack is already playing (e.g. from queue advance/jump),
+    // just sync local state — don't re-loadTrack
+    if (globalCurrentTrack && globalCurrentTrack.trackId !== trackId) {
+      console.log('[PlayerScreen] globalCurrentTrack differs from route trackId, following global:', globalCurrentTrack.title);
+      setTrack(globalCurrentTrack);
+      setAudioUrl(globalCurrentTrack.audioUrl || null);
+      setError(null);
+      loadLyrics(globalCurrentTrack.trackId);
+      return;
+    }
+
     // Check if track is already loaded
     if (globalCurrentTrack?.trackId === trackId) {
       console.log('[PlayerScreen] Track already loaded, checking audioUrl validity');
       setTrack(globalCurrentTrack);
-      
+
       // Check if audioUrl exists and is not expired
-      const hasValidAudioUrl = globalCurrentTrack.audioUrl && 
-                                globalCurrentTrack.audioUrlExpiry && 
+      const hasValidAudioUrl = globalCurrentTrack.audioUrl &&
+                                globalCurrentTrack.audioUrlExpiry &&
                                 globalCurrentTrack.audioUrlExpiry > Date.now();
-      
+
       if (hasValidAudioUrl) {
         console.log('[PlayerScreen] Using cached audioUrl');
         setAudioUrl(globalCurrentTrack.audioUrl || null);

@@ -7,6 +7,7 @@ import type {
   QueueRemoveRequest,
   QueueReorderRequest,
   QueueAdvanceRequest,
+  QueueJumpRequest,
   QueueLoopModeRequest,
   QueueUpdatedEvent,
 } from '@shared/types/socket-events';
@@ -251,6 +252,77 @@ export function registerQueueHandlers(socket: Socket, io: Server) {
     } catch (error) {
       console.error('[QueueHandlers] Error in queue:advance:', error);
       callback({ success: false, error: 'Failed to advance track' });
+    }
+  });
+
+  /**
+   * Handle queue:jump event - jump directly to a specific track index
+   */
+  socket.on('queue:jump', (request: QueueJumpRequest, callback) => {
+    try {
+      console.log(`[QueueHandlers] Jump to index ${request.targetIndex} in room ${request.roomId}`);
+
+      // Validate room exists
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({ success: false, error: 'Room not found' });
+        return;
+      }
+
+      // Validate user is member
+      const isMember = room.members.some((m) => m.userId === request.userId);
+      if (!isMember) {
+        callback({ success: false, error: 'User not in room' });
+        return;
+      }
+
+      // Jump to track
+      const result = queueManager.jumpToTrack(request.roomId, request.targetIndex);
+
+      if (result.success) {
+        // Get username for broadcast
+        const user = room.members.find((m) => m.userId === request.userId);
+        const username = user?.username || 'Unknown';
+
+        // Update sync state to reflect new track
+        const newTrack = result.currentTrackIndex! >= 0 ? result.playlist![result.currentTrackIndex!] : null;
+        if (newTrack) {
+          const newSyncState = {
+            trackId: newTrack.trackId,
+            status: 'playing' as const,
+            seekTime: 0,
+            serverTimestamp: Date.now(),
+            playbackRate: room.syncState.playbackRate,
+            volume: room.syncState.volume,
+            updatedBy: request.userId,
+            version: room.syncState.version + 1,
+          };
+          roomManager.updateSyncState(request.roomId, newSyncState);
+
+          // Broadcast sync:state to all room members
+          io.to(request.roomId).emit('sync:state', {
+            roomId: request.roomId,
+            syncState: newSyncState,
+            currentTrack: newTrack,
+          });
+        }
+
+        // Broadcast queue:updated to all room members
+        const updatedEvent: QueueUpdatedEvent = {
+          roomId: request.roomId,
+          playlist: result.playlist!,
+          currentTrackIndex: result.currentTrackIndex!,
+          currentTrack: newTrack,
+          operation: 'advance',
+          operatorName: username,
+        };
+        io.to(request.roomId).emit('queue:updated', updatedEvent);
+      }
+
+      callback(result);
+    } catch (error) {
+      console.error('[QueueHandlers] Error in queue:jump:', error);
+      callback({ success: false, error: 'Failed to jump to track' });
     }
   });
 

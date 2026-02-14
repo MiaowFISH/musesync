@@ -160,15 +160,16 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
       }
     };
 
-    audioService.onEnd(handleTrackEnd);
+    const unsubscribe = audioService.onEnd(handleTrackEnd);
 
     return () => {
+      unsubscribe();
       // Clear debounce timer on unmount
       if (advanceDebounceRef.current) {
         clearTimeout(advanceDebounceRef.current);
       }
     };
-  }, [roomId, userId, isConnected]);
+  }, [roomId, userId, isConnected, fetchAndPlay]);
 
   /**
    * Handle remove track
@@ -264,28 +265,21 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
     setIsQueueLoading(true);
 
     try {
-      // Use advance to jump to the track
-      const direction = index > currentIndex ? 'next' : 'previous';
-      const steps = Math.abs(index - currentIndex);
-      let lastResult: any = null;
+      // Jump directly to target index (single server call)
+      const result = await queueService.jump({
+        roomId,
+        userId,
+        targetIndex: index,
+      });
 
-      for (let i = 0; i < steps; i++) {
-        const result = await queueService.advance({
-          roomId,
-          userId,
-          direction,
-        });
-
-        if (!result.success) {
-          toast.error(result.error || '跳转失败');
-          break;
-        }
-        lastResult = result;
+      if (!result.success) {
+        toast.error(result.error || '跳转失败');
+        return;
       }
 
       // Operator plays the target track themselves
-      if (lastResult?.success && lastResult.currentTrackIndex >= 0 && lastResult.playlist) {
-        const targetTrack = lastResult.playlist[lastResult.currentTrackIndex];
+      if (result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
+        const targetTrack = result.playlist[result.currentTrackIndex];
         if (targetTrack) {
           await fetchAndPlay(targetTrack);
         }

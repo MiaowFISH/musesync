@@ -223,6 +223,40 @@ export class QueueManager {
   }
 
   /**
+   * Jump directly to a specific track index
+   */
+  jumpToTrack(roomId: string, targetIndex: number): QueueOperationResponse {
+    try {
+      const room = roomManager.getRoom(roomId);
+      if (!room) {
+        return { success: false, error: 'Room not found' };
+      }
+
+      if (targetIndex < 0 || targetIndex >= room.playlist.length) {
+        return { success: false, error: 'Invalid target index' };
+      }
+
+      if (targetIndex === room.currentTrackIndex) {
+        return { success: true, playlist: room.playlist, currentTrackIndex: room.currentTrackIndex };
+      }
+
+      // Update room playlist with new index
+      roomManager.updatePlaylist(roomId, room.playlist, targetIndex);
+
+      console.log(`[QueueManager] Jumped to index ${targetIndex} in room ${roomId}`);
+
+      return {
+        success: true,
+        playlist: room.playlist,
+        currentTrackIndex: targetIndex,
+      };
+    } catch (error) {
+      console.error('[QueueManager] Error jumping to track:', error);
+      return { success: false, error: 'Failed to jump to track' };
+    }
+  }
+
+  /**
    * Set loop mode for room
    */
   setLoopMode(roomId: string, loopMode: 'none' | 'queue'): QueueOperationResponse {

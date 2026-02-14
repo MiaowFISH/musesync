@@ -53,16 +53,18 @@ export function usePlayer(): UsePlayerResult {
         store.setPosition(position);
       });
 
-      audioService.onEnd(() => {
+      const unsubEnd = audioService.onEnd(() => {
+        console.log('[usePlayer] Track ended, resetting state');
         store.setPlaying(false);
         store.setPosition(0);
       });
 
       isInitializedRef.current = true;
-    }
 
-    // Don't cleanup on unmount - AudioService is a singleton
-    // and should persist across component mounts
+      return () => {
+        unsubEnd();
+      };
+    }
   }, [store]);
 
   /**

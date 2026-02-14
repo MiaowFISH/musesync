@@ -206,6 +206,48 @@ export class QueueService {
   }
 
   /**
+   * Jump directly to a specific track index
+   */
+  async jump(params: {
+    roomId: string;
+    userId: string;
+    targetIndex: number;
+  }): Promise<QueueOperationResponse> {
+    return new Promise((resolve) => {
+      const socket = socketManager.getSocket();
+      if (!socket?.connected) {
+        resolve({ success: false, error: 'Not connected to server' });
+        return;
+      }
+
+      console.log('[QueueService] Jumping to index...', {
+        targetIndex: params.targetIndex,
+      });
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Request timeout' });
+      }, this.TIMEOUT_MS);
+
+      socket.emit('queue:jump', {
+        roomId: params.roomId,
+        userId: params.userId,
+        targetIndex: params.targetIndex,
+      }, (response: QueueOperationResponse) => {
+        clearTimeout(timeout);
+
+        if (response.success) {
+          console.log('[QueueService] Jump successful');
+        } else {
+          console.error('[QueueService] Jump failed:', response.error);
+        }
+
+        resolve(response);
+      });
+    });
+  }
+
+  /**
    * Toggle loop mode
    */
   async setLoopMode(params: {

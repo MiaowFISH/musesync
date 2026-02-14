@@ -16,7 +16,7 @@ export class WebAudioService {
   private currentTrack: Track | null = null;
   private progressInterval: number | null = null;
   private onProgressCallback: ((position: number) => void) | null = null;
-  private onEndCallback: (() => void) | null = null;
+  private onEndCallbacks: Array<() => void> = [];
   private isInitialized = false;
 
   /**
@@ -49,8 +49,8 @@ export class WebAudioService {
       // Setup event listeners
       this.audioElement.addEventListener('ended', () => {
         this.stopProgressTracking();
-        if (this.onEndCallback) {
-          this.onEndCallback();
+        for (const cb of this.onEndCallbacks) {
+          try { cb(); } catch (e) { console.error('[WebAudioService] onEnd callback error:', e); }
         }
       });
 
@@ -260,10 +260,14 @@ export class WebAudioService {
   }
 
   /**
-   * Set end callback
+   * Add end callback (supports multiple listeners)
+   * Returns unsubscribe function
    */
-  onEnd(callback: () => void): void {
-    this.onEndCallback = callback;
+  onEnd(callback: () => void): () => void {
+    this.onEndCallbacks.push(callback);
+    return () => {
+      this.onEndCallbacks = this.onEndCallbacks.filter(cb => cb !== callback);
+    };
   }
 
   /**
@@ -322,7 +326,7 @@ export class WebAudioService {
 
     this.audioElement = null;
     this.onProgressCallback = null;
-    this.onEndCallback = null;
+    this.onEndCallbacks = [];
     this.isInitialized = false;
   }
 }

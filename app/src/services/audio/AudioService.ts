@@ -159,10 +159,11 @@ export class AudioService {
   }
 
   /**
-   * Set end callback
+   * Add end callback (supports multiple listeners)
+   * Returns unsubscribe function
    */
-  onEnd(callback: () => void): void {
-    this.implementation.onEnd(callback);
+  onEnd(callback: () => void): () => void {
+    return this.implementation.onEnd(callback);
   }
 
   /**

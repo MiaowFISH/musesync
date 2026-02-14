@@ -35,6 +35,7 @@ export interface SocketEvents {
   "queue:remove": (data: QueueRemoveRequest, callback: (response: QueueOperationResponse) => void) => void;
   "queue:reorder": (data: QueueReorderRequest, callback: (response: QueueOperationResponse) => void) => void;
   "queue:advance": (data: QueueAdvanceRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:jump": (data: QueueJumpRequest, callback: (response: QueueOperationResponse) => void) => void;
   "queue:loop_mode": (data: QueueLoopModeRequest, callback: (response: QueueOperationResponse) => void) => void;
   "queue:updated": (data: QueueUpdatedEvent) => void;
 
@@ -152,6 +153,12 @@ export interface QueueAdvanceRequest {
   roomId: string;
   userId: string;
   direction: 'next' | 'previous';
+}
+
+export interface QueueJumpRequest {
+  roomId: string;
+  userId: string;
+  targetIndex: number;
 }
 
 export interface QueueLoopModeRequest {

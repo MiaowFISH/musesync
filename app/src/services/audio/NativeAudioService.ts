@@ -13,7 +13,7 @@ export class NativeAudioService {
   private player: AudioPlayer | null = null;
   private currentTrack: Track | null = null;
   private onProgressCallback: ((position: number) => void) | null = null;
-  private onEndCallback: (() => void) | null = null;
+  private onEndCallbacks: Array<() => void> = [];
   private isSetup = false;
   private _volume = 1;
   private _playbackRate = 1;
@@ -62,9 +62,11 @@ export class NativeAudioService {
           this.player.duration > 0 &&
           this.player.currentTime >= this.player.duration - 0.5;
 
-        if (atEnd && this.onEndCallback) {
+        if (atEnd && this.onEndCallbacks.length > 0) {
           console.log('[NativeAudioService] Track ended');
-          this.onEndCallback();
+          for (const cb of this.onEndCallbacks) {
+            try { cb(); } catch (e) { console.error('[NativeAudioService] onEnd callback error:', e); }
+          }
         }
       }
 
@@ -270,10 +272,14 @@ export class NativeAudioService {
   }
 
   /**
-   * Set end callback
+   * Add end callback (supports multiple listeners)
+   * Returns unsubscribe function
    */
-  onEnd(callback: () => void): void {
-    this.onEndCallback = callback;
+  onEnd(callback: () => void): () => void {
+    this.onEndCallbacks.push(callback);
+    return () => {
+      this.onEndCallbacks = this.onEndCallbacks.filter(cb => cb !== callback);
+    };
   }
 
   /**
@@ -312,7 +318,7 @@ export class NativeAudioService {
     }
 
     this.onProgressCallback = null;
-    this.onEndCallback = null;
+    this.onEndCallbacks = [];
     this.currentTrack = null;
     this.isSetup = false;
     console.log('[NativeAudioService] Disposed');
