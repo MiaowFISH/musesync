@@ -117,7 +117,7 @@ export class NativeAudioService {
 
       // Configure player
       this.player.volume = this._volume;
-      this.player.playbackRate = this._playbackRate;
+      this.player.setPlaybackRate(this._playbackRate);
 
       // Setup lock screen metadata
       this.player.setActiveForLockScreen(true);
@@ -235,7 +235,7 @@ export class NativeAudioService {
     this._playbackRate = rate;
 
     if (this.player) {
-      this.player.playbackRate = rate;
+      this.player.setPlaybackRate(rate);
       console.log('[NativeAudioService] Playback rate set to:', rate);
     }
   }
