@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { networkMonitor, NetworkStatus } from '../services/sync/NetworkMonitor';
-import { socketManager, ConnectionState } from '../services/sync/SocketManager';
+import { socketManager, ConnectionState, ReconnectInfo } from '../services/sync/SocketManager';
 
 export interface NetworkStatusHook {
   isOffline: boolean;
@@ -12,6 +12,7 @@ export interface NetworkStatusHook {
   showBanner: boolean;
   networkStatus: NetworkStatus;
   connectionState: ConnectionState;
+  reconnectInfo: ReconnectInfo;
 }
 
 /**
@@ -20,6 +21,7 @@ export interface NetworkStatusHook {
 export function useNetworkStatus(): NetworkStatusHook {
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(networkMonitor.getStatus());
   const [connectionState, setConnectionState] = useState<ConnectionState>(socketManager.getConnectionState());
+  const [reconnectInfo, setReconnectInfo] = useState<ReconnectInfo>(socketManager.getReconnectInfo());
 
   // Subscribe to network status changes
   useEffect(() => {
@@ -39,6 +41,15 @@ export function useNetworkStatus(): NetworkStatusHook {
     return unsubscribe;
   }, []);
 
+  // Subscribe to reconnect info changes
+  useEffect(() => {
+    const unsubscribe = socketManager.onReconnectInfoChange((info) => {
+      setReconnectInfo(info);
+    });
+
+    return unsubscribe;
+  }, []);
+
   // Derived state
   const isOffline = !networkStatus.isConnected;
   const isReconnecting = connectionState === 'reconnecting';
@@ -52,5 +63,6 @@ export function useNetworkStatus(): NetworkStatusHook {
     showBanner,
     networkStatus,
     connectionState,
+    reconnectInfo,
   };
 }

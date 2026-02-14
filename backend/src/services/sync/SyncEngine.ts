@@ -13,6 +13,7 @@ import { incrementVersion, isVersionNewer } from './versionUtils';
 export class SyncEngine {
   private io: SocketIOServer | null = null;
   private heartbeatTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
+  private memberSocketIds: Map<string, string> = new Map(); // key: roomId:userId -> socketId
   private trackChangeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds (NETR-05: more responsive timeout detection)
   private readonly MEMBER_TIMEOUT = 60000; // 60 seconds (NETR-05: disconnect after 60s inactivity)
@@ -131,6 +132,9 @@ export class SyncEngine {
     // Clear existing timer
     this.stopHeartbeat(key);
 
+    // Track socketId for force-disconnect on timeout
+    this.memberSocketIds.set(key, socketId);
+
     // Start new timer
     const timer = setInterval(() => {
       this.checkMemberTimeout(roomId, userId);
@@ -171,7 +175,9 @@ export class SyncEngine {
     const timeSinceLastSeen = now - member.lastSeenAt;
 
     if (timeSinceLastSeen > this.MEMBER_TIMEOUT) {
-      console.warn(`[SyncEngine] Member ${userId} timed out in room ${roomId}`);
+      console.warn(`[SyncEngine] Member ${userId} timed out in room ${roomId} (${Math.round(timeSinceLastSeen / 1000)}s inactive)`);
+
+      const key = `${roomId}:${userId}`;
 
       // Mark as disconnected
       member.connectionState = 'disconnected';
@@ -186,6 +192,16 @@ export class SyncEngine {
           userId,
           roomId,
         });
+
+        // Force-disconnect the client's socket so it receives the 'disconnect' event
+        const socketId = this.memberSocketIds.get(key);
+        if (socketId) {
+          const targetSocket = this.io.sockets.sockets.get(socketId);
+          if (targetSocket) {
+            console.log(`[SyncEngine] Force-disconnecting socket ${socketId} for timed-out member ${userId}`);
+            targetSocket.disconnect(true);
+          }
+        }
       }
 
       // Remove member from room (NETR-05: enforce cleanup)
@@ -196,8 +212,9 @@ export class SyncEngine {
         this.cleanupRoom(roomId);
       }
 
-      // Stop heartbeat
-      this.stopHeartbeat(`${roomId}:${userId}`);
+      // Stop heartbeat and clean up socketId mapping
+      this.stopHeartbeat(key);
+      this.memberSocketIds.delete(key);
     }
   }
 

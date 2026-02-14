@@ -8,7 +8,7 @@ import { socketManager } from '../../services/sync/SocketManager';
 import { useTheme } from '../../hooks/useTheme';
 
 export function NetworkBanner() {
-  const { showBanner, isOffline, isReconnecting, isConnectionError } = useNetworkStatus();
+  const { showBanner, isOffline, isReconnecting, isConnectionError, reconnectInfo } = useNetworkStatus();
   const theme = useTheme();
   const slideAnim = useRef(new Animated.Value(-100)).current;
 
@@ -38,15 +38,16 @@ export function NetworkBanner() {
   let bannerText = '';
   let backgroundColor = '';
 
-  if (isOffline) {
+  if (isConnectionError) {
+    bannerText = `连接失败 (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})`;
+    backgroundColor = '#F44336'; // Red
+  } else if (isOffline) {
     bannerText = '网络已断开，正在重连...';
     backgroundColor = '#F44336'; // Red
   } else if (isReconnecting) {
-    bannerText = '正在重连...';
+    const nextRetrySec = Math.ceil(reconnectInfo.nextRetryMs / 1000);
+    bannerText = `正在重连 (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})，${nextRetrySec}s 后重试`;
     backgroundColor = '#FF9800'; // Orange/Yellow
-  } else if (isConnectionError) {
-    bannerText = '连接失败';
-    backgroundColor = '#F44336'; // Red
   }
 
   const handleManualRetry = () => {

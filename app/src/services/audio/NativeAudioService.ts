@@ -22,6 +22,8 @@ export class NativeAudioService {
   private progressInterval: ReturnType<typeof setInterval> | null = null;
   private statusSubscription: { remove: () => void } | null = null;
   private lastReportedPlaying = false;
+  private lastKnownPosition = 0;
+  private seekDetectionEnabled = true;
 
   /**
    * Initialize expo-audio player
@@ -56,6 +58,32 @@ export class NativeAudioService {
 
     this.statusSubscription = this.player.addListener('playbackStatusUpdate', (status) => {
       const isPlaying = status.playing;
+      const currentTime = this.player?.currentTime ?? 0;
+
+      // Detect lock screen seek forward/backward (±10s jump) and convert to skip
+      if (this.seekDetectionEnabled && this.lastReportedPlaying && isPlaying && this.lastKnownPosition > 0) {
+        const delta = currentTime - this.lastKnownPosition;
+        // expo-audio seek interval is 10s — detect jumps of ~9-11s
+        if (delta >= 9 && delta <= 11 && this.onRemoteNextCallback) {
+          console.log('[NativeAudioService] Detected seek forward from lock screen, triggering skip next');
+          this.seekDetectionEnabled = false;
+          // Seek back to original position before triggering skip (skip will load new track)
+          this.player?.seekTo(this.lastKnownPosition);
+          this.onRemoteNextCallback();
+          setTimeout(() => { this.seekDetectionEnabled = true; }, 1000);
+          return;
+        }
+        if (delta <= -9 && delta >= -11 && this.onRemotePreviousCallback) {
+          console.log('[NativeAudioService] Detected seek backward from lock screen, triggering skip previous');
+          this.seekDetectionEnabled = false;
+          this.player?.seekTo(this.lastKnownPosition);
+          this.onRemotePreviousCallback();
+          setTimeout(() => { this.seekDetectionEnabled = true; }, 1000);
+          return;
+        }
+      }
+
+      this.lastKnownPosition = currentTime;
 
       // Detect transition from playing to not-playing at end of track
       if (this.lastReportedPlaying && !isPlaying && !this.player?.paused) {
@@ -123,19 +151,26 @@ export class NativeAudioService {
       this.player.volume = this._volume;
       this.player.setPlaybackRate(this._playbackRate);
 
-      // Setup lock screen metadata with duration for progress bar
-      this.player.setActiveForLockScreen(true);
-      this.player.updateLockScreenMetadata({
-        title: track.title,
-        artist: track.artist,
-        artworkUrl: track.coverUrl ?? undefined,
-        duration: track.duration,
-      });
+      // Setup lock screen with metadata and seek buttons (used as skip next/previous)
+      this.player.setActiveForLockScreen(
+        true,
+        {
+          title: track.title,
+          artist: track.artist,
+          artworkUrl: track.coverUrl ?? undefined,
+        },
+        {
+          showSeekForward: true,
+          showSeekBackward: true,
+        }
+      );
 
       // Setup listeners
       this.setupStatusListener();
       this.startProgressPolling();
       this.lastReportedPlaying = false;
+      this.lastKnownPosition = 0;
+      this.seekDetectionEnabled = true;
 
       // Start playback
       this.player.play();

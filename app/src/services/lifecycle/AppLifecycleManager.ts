@@ -4,6 +4,14 @@
 import { AppState, AppStateStatus } from 'react-native';
 import type { NativeEventSubscription } from 'react-native';
 import { stateReconciler, type ReconciliationResult } from '../sync/StateReconciler';
+import type { SyncState, Track } from '@shared/types/entities';
+
+export type LocalStateProvider = () => {
+  syncState: SyncState;
+  playlist: Track[];
+  currentTrackIndex: number;
+  loopMode: 'none' | 'queue';
+} | null;
 
 /**
  * App Lifecycle Manager
@@ -16,6 +24,7 @@ export class AppLifecycleManager {
   private listeners: Set<(result: ReconciliationResult) => void> = new Set();
   private currentRoomId: string | null = null;
   private currentUserId: string | null = null;
+  private localStateProvider: LocalStateProvider | null = null;
 
   /**
    * Start listening to app state changes
@@ -48,6 +57,13 @@ export class AppLifecycleManager {
     this.currentRoomId = roomId;
     this.currentUserId = userId;
     console.log('[AppLifecycle] Room context updated:', { roomId, userId });
+  }
+
+  /**
+   * Set provider for current local state (used for change detection during reconciliation)
+   */
+  setLocalStateProvider(provider: LocalStateProvider | null): void {
+    this.localStateProvider = provider;
   }
 
   /**
@@ -108,12 +124,14 @@ export class AppLifecycleManager {
       return;
     }
 
-    // Trigger state reconciliation
+    // Trigger state reconciliation with current local state for change detection
     try {
+      const currentState = this.localStateProvider?.() ?? undefined;
       const result = await stateReconciler.reconcile({
         roomId: this.currentRoomId,
         userId: this.currentUserId,
         source: 'foreground',
+        currentState,
       });
 
       console.log('[AppLifecycle] Reconciliation result:', result);

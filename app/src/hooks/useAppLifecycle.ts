@@ -24,6 +24,23 @@ export function useAppLifecycle() {
     appLifecycleManager.setRoomContext(roomId || null, userId || null);
   }, [roomId, userId]);
 
+  // Provide current local state for change detection during reconciliation
+  useEffect(() => {
+    appLifecycleManager.setLocalStateProvider(() => {
+      const room = roomStore.room;
+      if (!room) return null;
+      return {
+        syncState: room.syncState,
+        playlist: room.playlist || [],
+        currentTrackIndex: room.currentTrackIndex ?? 0,
+        loopMode: room.loopMode || 'none',
+      };
+    });
+    return () => {
+      appLifecycleManager.setLocalStateProvider(null);
+    };
+  }, [roomStore]);
+
   // Start/stop lifecycle manager
   useEffect(() => {
     appLifecycleManager.start();

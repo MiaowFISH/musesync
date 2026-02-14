@@ -14,6 +14,12 @@ import { NETWORK_CONFIG } from '@shared/constants';
  */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
+export interface ReconnectInfo {
+  attempt: number;
+  maxAttempts: number;
+  nextRetryMs: number;
+}
+
 /**
  * Socket Manager
  * Manages Socket.io connection with automatic reconnection
@@ -23,8 +29,10 @@ export class SocketManager {
   private serverUrl: string;
   private connectionState: ConnectionState = 'disconnected';
   private stateListeners: Set<(state: ConnectionState) => void> = new Set();
+  private reconnectInfoListeners: Set<(info: ReconnectInfo) => void> = new Set();
   private reconnectCount = 0;
   private maxReconnectAttempts = 10;
+  private baseReconnectDelay = 1000;
   private clientId: string | null = null;
   private isReconnecting: boolean = false;
   private currentRoomId: string | null = null;
@@ -131,6 +139,36 @@ export class SocketManager {
   }
 
   /**
+   * Get current reconnection info
+   */
+  getReconnectInfo(): ReconnectInfo {
+    const nextRetryMs = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectCount),
+      30000
+    );
+    return {
+      attempt: this.reconnectCount,
+      maxAttempts: this.maxReconnectAttempts,
+      nextRetryMs,
+    };
+  }
+
+  /**
+   * Subscribe to reconnect info changes
+   */
+  onReconnectInfoChange(listener: (info: ReconnectInfo) => void): () => void {
+    this.reconnectInfoListeners.add(listener);
+    return () => { this.reconnectInfoListeners.delete(listener); };
+  }
+
+  private notifyReconnectInfo(): void {
+    const info = this.getReconnectInfo();
+    this.reconnectInfoListeners.forEach((listener) => {
+      try { listener(info); } catch (e) { /* ignore */ }
+    });
+  }
+
+  /**
    * Connect to server
    */
   connect(): Socket {
@@ -189,20 +227,15 @@ export class SocketManager {
 
     this.socket.on('connect_error', (error: any) => {
       console.error('[SocketManager] Connection error:', error.message);
-      console.error('[SocketManager] Error details:', {
-        type: error.type || 'unknown',
-        description: error.description || error.message,
-        context: error.context || 'none',
-        serverUrl: this.serverUrl,
-        platform: Platform.OS,
-      });
       this.reconnectCount++;
-      
+      this.notifyReconnectInfo();
+
       if (this.reconnectCount >= this.maxReconnectAttempts) {
-        console.error('[SocketManager] Max reconnection attempts reached');
+        console.error(`[SocketManager] Max reconnection attempts reached (${this.reconnectCount}/${this.maxReconnectAttempts})`);
         this.setConnectionState('error');
       } else {
-        this.setConnectionState('connecting');
+        console.log(`[SocketManager] Reconnect attempt ${this.reconnectCount}/${this.maxReconnectAttempts}`);
+        this.setConnectionState('reconnecting');
       }
     });
 
