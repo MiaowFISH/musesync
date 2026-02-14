@@ -7,6 +7,8 @@ import type {
   RoomJoinRequest,
   RoomLeaveRequest,
   RoomRejoinRequest,
+  RoomStateSnapshotRequest,
+  RoomStateSnapshotResponse,
 } from '@shared/types/socket-events';
 import { roomManager } from '../services/room/RoomManager';
 import { syncEngine } from '../services/sync/SyncEngine';
@@ -242,6 +244,49 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
     } catch (error) {
       console.error('[RoomHandlers] Error in room:rejoin:', error);
       callback({ success: false, error: 'Failed to rejoin room' });
+    }
+  });
+
+  /**
+   * Handle room:state_snapshot - fetch authoritative room state
+   */
+  socket.on('room:state_snapshot', (request: RoomStateSnapshotRequest, callback) => {
+    try {
+      console.log(`[RoomHandlers] State snapshot request for room ${request.roomId} from ${request.userId}`);
+
+      const room = roomManager.getRoom(request.roomId);
+      if (!room) {
+        callback({
+          success: false,
+          serverTimestamp: Date.now(),
+          error: 'Room not found',
+        });
+        return;
+      }
+
+      // Update member activity timestamp
+      syncEngine.updateMemberActivity(request.roomId, request.userId);
+
+      // Return full room state
+      const response: RoomStateSnapshotResponse = {
+        success: true,
+        room,
+        syncState: room.syncState,
+        playlist: room.playlist,
+        currentTrackIndex: room.currentTrackIndex,
+        loopMode: room.loopMode,
+        serverTimestamp: Date.now(),
+      };
+
+      callback(response);
+      console.log(`[RoomHandlers] State snapshot sent for room ${request.roomId}`);
+    } catch (error) {
+      console.error('[RoomHandlers] Error in room:state_snapshot:', error);
+      callback({
+        success: false,
+        serverTimestamp: Date.now(),
+        error: 'Failed to fetch room state',
+      });
     }
   });
 

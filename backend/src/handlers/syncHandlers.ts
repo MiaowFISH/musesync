@@ -34,6 +34,10 @@ export function registerSyncHandlers(socket: Socket) {
         return;
       }
 
+      // Update member activity and reset heartbeat timer
+      syncEngine.updateMemberActivity(data.roomId, data.fromUserId);
+      syncEngine.resetHeartbeat(data.roomId, data.fromUserId);
+
       console.log(`[SyncHandlers] Broadcasting heartbeat from host ${data.fromUserId} in room ${data.roomId}`);
 
       // Broadcast to all other room members (exclude sender)

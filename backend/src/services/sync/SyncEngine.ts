@@ -14,8 +14,8 @@ export class SyncEngine {
   private io: SocketIOServer | null = null;
   private heartbeatTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
   private trackChangeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private readonly HEARTBEAT_INTERVAL = 300000; // 5 minutes (increased to avoid false positives)
-  private readonly MEMBER_TIMEOUT = 600000; // 10 minutes
+  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds (NETR-05: more responsive timeout detection)
+  private readonly MEMBER_TIMEOUT = 60000; // 60 seconds (NETR-05: disconnect after 60s inactivity)
   private readonly TRACK_CHANGE_DEBOUNCE = 300; // 300ms leading-edge debounce
 
   /**
@@ -172,20 +172,51 @@ export class SyncEngine {
 
     if (timeSinceLastSeen > this.MEMBER_TIMEOUT) {
       console.warn(`[SyncEngine] Member ${userId} timed out in room ${roomId}`);
-      
+
       // Mark as disconnected
       member.connectionState = 'disconnected';
-      
-      // Emit timeout event to room
+
+      // Emit timeout and disconnected events to room
       if (this.io) {
         this.io.to(roomId).emit('member:timeout', {
           userId,
           roomId,
         });
+        this.io.to(roomId).emit('member:disconnected', {
+          userId,
+          roomId,
+        });
+      }
+
+      // Remove member from room (NETR-05: enforce cleanup)
+      const result = roomManager.leaveRoom(roomId, userId);
+
+      // If room was deleted, cleanup
+      if (result.deleted) {
+        this.cleanupRoom(roomId);
       }
 
       // Stop heartbeat
       this.stopHeartbeat(`${roomId}:${userId}`);
+    }
+  }
+
+  /**
+   * Reset heartbeat timer when heartbeat is received
+   */
+  resetHeartbeat(roomId: string, userId: string) {
+    const key = `${roomId}:${userId}`;
+    const timer = this.heartbeatTimers.get(key);
+
+    if (timer) {
+      // Clear existing timer and restart
+      clearInterval(timer);
+
+      const newTimer = setInterval(() => {
+        this.checkMemberTimeout(roomId, userId);
+      }, this.HEARTBEAT_INTERVAL);
+
+      this.heartbeatTimers.set(key, newTimer);
     }
   }
 
