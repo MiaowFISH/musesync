@@ -49,8 +49,52 @@ export const RoomScreen: React.FC = () => {
       console.log('[RoomScreen] Setting room in store:', initialRoom.roomId);
       roomStore.setRoom(initialRoom);
       setRoom(initialRoom);
+
+      // Apply sync state from initialRoom if there's an active playback
+      const syncState = initialRoom.syncState;
+      if (syncState && syncState.trackId && syncState.status !== 'stopped') {
+        console.log('[RoomScreen] Initial room has active sync state, applying:', syncState.trackId, syncState.status);
+        (async () => {
+          try {
+            const songResponse = await musicApi.getSongDetail(syncState.trackId);
+            if (songResponse.success && songResponse.data) {
+              const audioResponse = await musicApi.getAudioUrl(syncState.trackId);
+              if (audioResponse.success && audioResponse.data?.audioUrl) {
+                const track: Track = {
+                  trackId: syncState.trackId,
+                  title: songResponse.data.title || 'Unknown Title',
+                  artist: songResponse.data.artist || 'Unknown Artist',
+                  album: songResponse.data.album || '',
+                  coverUrl: songResponse.data.coverUrl || '',
+                  duration: songResponse.data.duration,
+                  audioUrl: audioResponse.data.audioUrl,
+                  audioUrlExpiry: audioResponse.data.audioUrlExpiry,
+                  quality: audioResponse.data.quality || 'exhigh',
+                  addedAt: Date.now(),
+                };
+
+                await play(track, audioResponse.data.audioUrl);
+
+                // Compensate for time elapsed since server timestamp
+                const elapsed = (Date.now() - syncState.serverTimestamp) / 1000;
+                const targetPosition = syncState.status === 'playing'
+                  ? (syncState.seekTime || 0) + elapsed
+                  : (syncState.seekTime || 0);
+
+                seek(targetPosition);
+                if (syncState.status === 'paused') {
+                  pause();
+                }
+                console.log('[RoomScreen] Applied initial sync state, position:', targetPosition);
+              }
+            }
+          } catch (error) {
+            console.error('[RoomScreen] Error applying initial sync state:', error);
+          }
+        })();
+      }
     }
-    
+
     // Don't clear room when leaving - only clear when explicitly leaving the room
     // Room state should persist when navigating to Player screen
   }, [initialRoom]);

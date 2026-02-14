@@ -195,30 +195,50 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
         return;
       }
 
-      // Check if user is a member (by userId)
+      // Check if user is still a member (may have been removed by disconnect handler)
       const member = room.members.find((m: any) => m.userId === request.userId);
+
       if (!member) {
-        callback({ success: false, error: 'Not a member of this room' });
+        // User was removed (passive disconnect) — re-join the room
+        console.log(`[RoomHandlers] ${request.userId} not a member, falling back to join`);
+        const joinResponse = roomManager.joinRoom(request);
+        if (!joinResponse.success || !joinResponse.room) {
+          callback({ success: false, error: joinResponse.error || 'Failed to rejoin room' });
+          return;
+        }
+
+        socket.join(request.roomId);
+        roomManager.updateUserSocketId(request.roomId, request.userId, socket.id);
+        syncEngine.startHeartbeat(request.roomId, request.userId, socket.id);
+        roomManager.handleReconnection(request.clientId, socket.id, request.userId, request.roomId, io);
+
+        // Broadcast to other members that this user is back
+        socket.to(request.roomId).emit('member:joined', {
+          userId: request.userId,
+          username: request.username,
+          room: joinResponse.room,
+        });
+
+        // NOTE: Don't send room:state_snapshot here — B's RoomScreen isn't mounted yet.
+        // The syncState is already included in joinResponse.room (returned via callback).
+        // RoomScreen will apply sync state from initialRoom when it mounts.
+
+        callback({ success: true, room: joinResponse.room });
+        console.log(`[RoomHandlers] ${request.userId} re-joined room ${request.roomId} (was removed)`);
         return;
       }
 
-      // Handle reconnection (updates socketId, sets grace period for old socket)
+      // User is still a member — normal rejoin path (fast reconnect)
+      // Only update socket mapping and re-join the Socket.IO room.
+      // Do NOT send state_snapshot (client already has correct playback state).
+      // Do NOT broadcast member:joined (user never left from other members' perspective).
       roomManager.handleReconnection(request.clientId, socket.id, request.userId, request.roomId, io);
 
-      // Join Socket.io room
       socket.join(request.roomId);
-
-      // Start heartbeat
       syncEngine.startHeartbeat(request.roomId, request.userId, socket.id);
 
-      // Send full state snapshot
-      const snapshot = roomManager.getFullStateSnapshot(request.roomId);
-      if (snapshot) {
-        socket.emit('room:state_snapshot', snapshot);
-      }
-
-      callback({ success: true, room });
-      console.log(`[RoomHandlers] ${request.userId} rejoined room ${request.roomId}`);
+      callback({ success: true, room: roomManager.getRoom(request.roomId) });
+      console.log(`[RoomHandlers] ${request.userId} rejoined room ${request.roomId} (socket update only)`);
     } catch (error) {
       console.error('[RoomHandlers] Error in room:rejoin:', error);
       callback({ success: false, error: 'Failed to rejoin room' });

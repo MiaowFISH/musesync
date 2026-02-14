@@ -28,6 +28,8 @@ export class SocketManager {
   private isReconnecting: boolean = false;
   private currentRoomId: string | null = null;
   private currentUserId: string | null = null;
+  private currentUsername: string = '';
+  private currentDeviceId: string = '';
 
   constructor(serverUrl: string = 'http://localhost:3000') {
     this.serverUrl = serverUrl;
@@ -94,9 +96,11 @@ export class SocketManager {
   /**
    * Store current room context for auto-rejoin on reconnection
    */
-  setCurrentRoom(roomId: string, userId: string): void {
+  setCurrentRoom(roomId: string, userId: string, username?: string, deviceId?: string): void {
     this.currentRoomId = roomId;
     this.currentUserId = userId;
+    if (username) this.currentUsername = username;
+    if (deviceId) this.currentDeviceId = deviceId;
   }
 
   /**
@@ -105,6 +109,8 @@ export class SocketManager {
   clearCurrentRoom(): void {
     this.currentRoomId = null;
     this.currentUserId = null;
+    this.currentUsername = '';
+    this.currentDeviceId = '';
   }
 
   /**
@@ -209,8 +215,8 @@ export class SocketManager {
           roomId: this.currentRoomId,
           userId: this.currentUserId,
           clientId: this.clientId,
-          username: '',
-          deviceId: '',
+          username: this.currentUsername,
+          deviceId: this.currentDeviceId,
           deviceType: Platform.OS as 'ios' | 'android' | 'web',
         }, (response: any) => {
           clearTimeout(rejoinTimeout);

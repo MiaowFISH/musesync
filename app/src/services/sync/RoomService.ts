@@ -57,7 +57,7 @@ export class RoomService {
           console.log(`[RoomService] Room created: ${response.room.roomId}`);
 
           // Track current room for auto-rejoin
-          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+          socketManager.setCurrentRoom(response.room.roomId, params.userId, params.username, params.deviceId);
 
           // Start time sync after joining room
           timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
@@ -122,7 +122,7 @@ export class RoomService {
           console.log(`[RoomService] Joined room: ${response.room.roomId}`);
 
           // Track current room for auto-rejoin
-          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+          socketManager.setCurrentRoom(response.room.roomId, params.userId, params.username, params.deviceId);
 
           // Start time sync after joining room
           timeSyncService.performSync(response.room.roomId, params.userId).catch((error) => {
@@ -231,7 +231,7 @@ export class RoomService {
 
         if (response?.success && response.room) {
           console.log(`[RoomService] Rejoined room: ${response.room.roomId}`);
-          socketManager.setCurrentRoom(response.room.roomId, params.userId);
+          socketManager.setCurrentRoom(response.room.roomId, params.userId, params.username, params.deviceId);
 
           timeSyncService.performSync(response.room.roomId, params.userId).catch((error: any) => {
             console.error('[RoomService] Time sync failed:', error);
