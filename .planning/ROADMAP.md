@@ -12,8 +12,8 @@ This roadmap delivers four critical enhancements to the existing real-time music
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Bug Fixes & Foundation** - Fix blocking technical debt
-- [ ] **Phase 2: Playlist Management** - Queue with room sync
+- [x] **Phase 1: Bug Fixes & Foundation** - Fix blocking technical debt
+- [x] **Phase 2: Playlist Management** - Queue with room sync
 - [ ] **Phase 3: Background Playback & Network Recovery** - Mobile resilience
 - [ ] **Phase 4: Control Modes** - Flexible room permissions
 
@@ -44,10 +44,14 @@ Plans:
   3. User can remove songs from queue and reorder by drag-and-drop
   4. Queue changes sync to all room members in real-time
   5. Playback automatically advances to next song when current song ends
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 02-01: [To be planned]
+- [ ] 02-01-PLAN.md — Shared types + Backend queue infrastructure: QueueItem type, queue event types, QueueManager service, queue handlers, server wiring (Wave 1)
+- [ ] 02-02-PLAN.md — Client QueueService + Search "Add to Queue": QueueService singleton, SearchScreen add-to-queue button with duplicate detection (Wave 2)
+- [ ] 02-03-PLAN.md — Queue UI components: install deps, QueueBottomSheet, QueueItem with swipe-delete, drag-drop reorder, EmptyQueueState (Wave 2)
+- [ ] 02-04-PLAN.md — Integration: PlayerScreen wiring, useQueueSync hook, auto-advance, loop mode, toast notifications, reconnection sync (Wave 3)
+- [ ] 02-05-PLAN.md — Manual verification: multi-device queue sync testing (Wave 4)
 
 ### Phase 3: Background Playback & Network Recovery
 **Goal**: Music continues playing when app is backgrounded, and app gracefully recovers from network disruptions
@@ -88,7 +92,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bug Fixes & Foundation | 0/3 | Planned | - |
-| 2. Playlist Management | 0/TBD | Not started | - |
+| 1. Bug Fixes & Foundation | 3/3 | ✓ Complete | 2026-02-14 |
+| 2. Playlist Management | 5/5 | ✓ Complete | 2026-02-14 |
 | 3. Background Playback & Network Recovery | 0/TBD | Not started | - |
 | 4. Control Modes | 0/TBD | Not started | - |
