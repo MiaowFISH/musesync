@@ -7,6 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useRoomStore } from '../stores';
 import { queueService } from '../services/queue/QueueService';
 import { socketManager } from '../services/sync/SocketManager';
+import { networkMonitor } from '../services/sync/NetworkMonitor';
 import { audioService } from '../services/audio/AudioService';
 import { musicApi } from '../services/api/MusicApi';
 import { toast } from '../components/common/Toast';
@@ -134,6 +135,14 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
         return;
       }
 
+      // Check if network is connected (offline playback behavior)
+      const networkStatus = networkMonitor.getStatus();
+      if (!networkStatus.isConnected) {
+        console.log('[useQueueSync] Network offline, stopping playback after current track');
+        toast.info('网络已断开，当前歌曲播放完毕');
+        return;
+      }
+
       // Debounce to prevent duplicate advance calls
       if (hasAdvancedRef.current) {
         console.log('[useQueueSync] Already advanced, skipping');
@@ -189,6 +198,72 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
       if (advanceDebounceRef.current) {
         clearTimeout(advanceDebounceRef.current);
       }
+    };
+  }, [roomId, userId, isConnected, fetchAndPlay]);
+
+  /**
+   * Wire lock screen skip controls (next/previous)
+   */
+  useEffect(() => {
+    if (!roomId || !isConnected) return;
+
+    const handleRemoteNext = async () => {
+      console.log('[useQueueSync] Lock screen skip next triggered');
+      suppressAutoAdvance();
+
+      try {
+        const result = await queueService.advance({
+          roomId,
+          userId,
+          direction: 'next',
+        });
+
+        if (result.success && result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
+          const nextTrack = result.playlist[result.currentTrackIndex];
+          if (nextTrack) {
+            await fetchAndPlay(nextTrack);
+          }
+        } else if (result.currentTrackIndex === -1) {
+          console.log('[useQueueSync] Queue finished');
+          toast.info('播放队列已结束');
+        }
+      } catch (error) {
+        console.error('[useQueueSync] Remote next error:', error);
+        toast.error('跳转失败');
+      }
+    };
+
+    const handleRemotePrevious = async () => {
+      console.log('[useQueueSync] Lock screen skip previous triggered');
+      suppressAutoAdvance();
+
+      try {
+        const result = await queueService.advance({
+          roomId,
+          userId,
+          direction: 'previous',
+        });
+
+        if (result.success && result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
+          const prevTrack = result.playlist[result.currentTrackIndex];
+          if (prevTrack) {
+            await fetchAndPlay(prevTrack);
+          }
+        }
+      } catch (error) {
+        console.error('[useQueueSync] Remote previous error:', error);
+        toast.error('跳转失败');
+      }
+    };
+
+    // Wire callbacks to audio service
+    audioService.setOnRemoteNext(handleRemoteNext);
+    audioService.setOnRemotePrevious(handleRemotePrevious);
+
+    return () => {
+      // Clean up callbacks
+      audioService.setOnRemoteNext(null);
+      audioService.setOnRemotePrevious(null);
     };
   }, [roomId, userId, isConnected, fetchAndPlay]);
 

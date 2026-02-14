@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { preferencesStorage } from '../storage/PreferencesStorage';
+import { stateReconciler } from './StateReconciler';
 import type { SocketEvents } from '@shared/types/socket-events';
 import { NETWORK_CONFIG } from '@shared/constants';
 
@@ -23,7 +24,7 @@ export class SocketManager {
   private connectionState: ConnectionState = 'disconnected';
   private stateListeners: Set<(state: ConnectionState) => void> = new Set();
   private reconnectCount = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private clientId: string | null = null;
   private isReconnecting: boolean = false;
   private currentRoomId: string | null = null;
@@ -121,6 +122,15 @@ export class SocketManager {
   }
 
   /**
+   * Reset reconnect count (called by manual retry button)
+   */
+  resetReconnectCount(): void {
+    console.log('[SocketManager] Resetting reconnect count');
+    this.reconnectCount = 0;
+    this.setConnectionState('connecting');
+  }
+
+  /**
    * Connect to server
    */
   connect(): Socket {
@@ -143,7 +153,7 @@ export class SocketManager {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: NETWORK_CONFIG.RECONNECT_DELAY_MS || 1000,
-      reconnectionDelayMax: NETWORK_CONFIG.RECONNECT_DELAY_MAX_MS || 5000,
+      reconnectionDelayMax: 30000, // 30s max delay (exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s)
       reconnectionAttempts: this.maxReconnectAttempts,
       timeout: NETWORK_CONFIG.REQUEST_TIMEOUT_MS || 10000,
       // Force WebSocket upgrade for better debugging
@@ -196,7 +206,7 @@ export class SocketManager {
       }
     });
 
-    this.socket.on('reconnect', (attemptNumber) => {
+    this.socket.on('reconnect', async (attemptNumber) => {
       console.log(`[SocketManager] Reconnected after ${attemptNumber} attempts`);
       this.reconnectCount = 0;
 
@@ -218,12 +228,23 @@ export class SocketManager {
           username: this.currentUsername,
           deviceId: this.currentDeviceId,
           deviceType: Platform.OS as 'ios' | 'android' | 'web',
-        }, (response: any) => {
+        }, async (response: any) => {
           clearTimeout(rejoinTimeout);
           this.isReconnecting = false;
           if (response?.success) {
-            console.log('[SocketManager] Rejoin successful');
+            console.log('[SocketManager] Rejoin successful, triggering reconciliation');
             this.setConnectionState('connected');
+
+            // Trigger state reconciliation after successful rejoin
+            try {
+              await stateReconciler.reconcile({
+                roomId: this.currentRoomId!,
+                userId: this.currentUserId!,
+                source: 'reconnection',
+              });
+            } catch (error) {
+              console.error('[SocketManager] Post-reconnection reconciliation failed:', error);
+            }
           } else {
             console.error('[SocketManager] Rejoin failed:', response?.error);
             this.setConnectionState('error');
