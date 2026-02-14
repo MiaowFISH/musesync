@@ -12,6 +12,7 @@ import musicRoutes from './routes/music';
 // Import handlers
 import { registerRoomHandlers } from './handlers/roomHandlers';
 import { registerSyncHandlers } from './handlers/syncHandlers';
+import { registerQueueHandlers } from './handlers/queueHandlers';
 
 // Import services
 import { syncEngine } from './services/sync/SyncEngine';
@@ -77,6 +78,9 @@ io.on('connection', (socket) => {
 
   // Register sync handlers (play, pause, seek, time sync)
   registerSyncHandlers(socket);
+
+  // Register queue handlers (add, remove, reorder, advance, loop mode)
+  registerQueueHandlers(socket, io);
 
   socket.on('disconnect', (reason) => {
     console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
