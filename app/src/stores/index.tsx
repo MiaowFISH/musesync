@@ -348,6 +348,26 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [latency, setLatency] = useState(0);
   const [timeOffset, setTimeOffset] = useState(0);
 
+  // Sync connection state from SocketManager
+  useEffect(() => {
+    // Check initial state
+    const socket = socketManager.getSocket();
+    if (socket?.connected) {
+      setIsConnected(true);
+      setSocketId(socket.id ?? null);
+    }
+
+    const unsubscribe = socketManager.onStateChange((state) => {
+      const connected = state === 'connected';
+      setIsConnected(connected);
+      if (connected) {
+        setSocketId(socketManager.getSocket()?.id ?? null);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   const setConnected = useCallback((connected: boolean) => setIsConnected(connected), []);
 
   return (

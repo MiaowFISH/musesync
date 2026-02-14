@@ -1,12 +1,12 @@
-import { ConfigPlugin, withGradleProperties } from '@expo/config-plugins';
-import { PropertiesItem } from '@expo/config-plugins/build/android/Properties.js';
+import { ConfigPlugin, withGradleProperties } from "@expo/config-plugins";
+import { PropertiesItem } from "@expo/config-plugins/build/android/Properties.js";
 
 function setProperty(properties: PropertiesItem[], key: string, value: string) {
   const property = properties.find((p) => p.key === key);
   if (property) {
     property.value = value;
   } else {
-    properties.push({ type: 'property', key, value });
+    properties.push({ type: "property", key, value });
   }
 }
 
@@ -15,22 +15,22 @@ const withGradlePlugin: ConfigPlugin = (config) => {
     const properties = config.modResults;
 
     // Enable AndroidX
-    setProperty(properties, 'android.useAndroidX', 'true');
+    setProperty(properties, "android.useAndroidX", "true");
 
     // Enable Jetifier
-    setProperty(properties, 'android.enableJetifier', 'true');
+    setProperty(properties, "android.enableJetifier", "true");
 
     // Enable Minify in Release Builds
-    setProperty(properties, 'minifyEnabled', 'true');
+    setProperty(properties, "minifyEnabled", "true");
 
-    // Disable newArchEnabled
-    setProperty(properties, 'newArchEnabled', 'false');
+    // Disable newArchEnabled (react-native-track-player 4.x incompatible with Turbo Modules)
+    setProperty(properties, "newArchEnabled", "false");
 
     // Enable Hermes
-    setProperty(properties, 'hermesEnabled', 'true');
+    setProperty(properties, "hermesEnabled", "true");
 
     // Enable android.enableR8.fullMode
-    setProperty(properties, 'android.enableR8.fullMode', 'true');
+    setProperty(properties, "android.enableR8.fullMode", "true");
 
     return config;
   });
