@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** 多设备之间的播放状态实时同步 — 一个人按下播放，所有人同时听到音乐。
-**Current focus:** Phase 2: Playlist Management — complete, pending verification
+**Current focus:** Phase 3: Background Playback & Network Recovery — in progress
 
 ## Current Position
 
-Phase: 2 of 4 (Playlist Management)
-Plan: 5 of 5 completed (02-01 ✅, 02-02 ✅, 02-03 ✅, 02-04 ✅, 02-05 ✅)
-Status: Phase 2 complete, pending phase verification
-Last activity: 2026-02-14 — Plan 02-05 completed (manual verification + bug fixes)
+Phase: 3 of 4 (Background Playback & Network Recovery)
+Plan: 1 of 4 completed (03-01 ✅)
+Status: Phase 3 in progress
+Last activity: 2026-02-15 — Plan 03-01 completed (state reconciliation foundation)
 
-Progress: [██████████] 100%
+Progress: [██▒▒▒▒▒▒▒▒] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: ~3 min
 - Total execution time: ~1 session
 
@@ -29,9 +29,10 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 01 | 3/3 | 1 session | - |
 | 02 | 5/5 | 17 min | 3 min |
+| 03 | 1/4 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 ✅, 02-03 ✅, 02-04 ✅, 02-05 ✅
+- Last 5 plans: 02-03 ✅, 02-04 ✅, 02-05 ✅, 03-01 ✅
 - Trend: Consistent execution
 
 *Updated after each plan completion*
@@ -43,6 +44,7 @@ Progress: [██████████] 100%
 | 02-03 | 3 min | 2 | 6 |
 | 02-04 | 3 min | 2 | 4 |
 | 02-05 | 5 min | 1 | 2 |
+| 03-01 | 4 min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -64,6 +66,9 @@ Recent decisions affecting current work:
 
 - [Phase 02-05]: Web uses FlatList with button controls instead of DraggableFlatList/Swipeable due to gesture conflicts
 - [Phase 02-05]: Mobile disables BottomSheet gestures during active drag to prevent collapse
+- [Phase 03-01]: Shared reconciliation logic for foreground-return and network-reconnection (user requirement)
+- [Phase 03-01]: 60s stale state threshold with TimeSyncService offset (NETR-04)
+- [Phase 03-01]: 60s heartbeat timeout with 30s interval for responsive detection (NETR-05)
 
 ### Pending Todos
 
@@ -81,6 +86,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-14 (Phase 2 complete)
-Stopped at: Completed 02-05-PLAN.md — Phase 2 all plans done, pending phase verification
+Last session: 2026-02-15 (Phase 3 in progress)
+Stopped at: Completed 03-01-PLAN.md — State reconciliation foundation complete
 Resume file: None
