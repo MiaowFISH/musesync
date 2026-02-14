@@ -40,7 +40,7 @@ export const QueueBottomSheet: React.FC<QueueBottomSheetProps> = ({
   const snapPoints = useMemo(() => ['12%', '50%', '90%'], []);
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<Track>) => {
-    const index = getIndex();
+    const index = getIndex() ?? -1;
     const isCurrentTrack = index === currentTrackIndex;
     return (
       <QueueItem

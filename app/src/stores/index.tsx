@@ -17,6 +17,8 @@ interface RoomState {
   setRoom: (room: Room | null) => void;
   updateSyncState: (syncState: SyncState) => void;
   updatePlaylist: (playlist: Track[]) => void;
+  updateCurrentTrackIndex: (index: number) => void;
+  updateLoopMode: (loopMode: 'none' | 'queue') => void;
   addMember: (user: User) => void;
   removeMember: (userId: string) => void;
   clear: () => void;
@@ -110,6 +112,24 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateCurrentTrackIndex = useCallback((index: number) => {
+    setRoomState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        currentTrackIndex: index,
+        currentTrack: index >= 0 && index < prev.playlist.length ? prev.playlist[index] : null,
+      };
+    });
+  }, []);
+
+  const updateLoopMode = useCallback((loopMode: 'none' | 'queue') => {
+    setRoomState((prev) => {
+      if (!prev) return prev;
+      return { ...prev, loopMode };
+    });
+  }, []);
+
   const addMember = useCallback((user: User) => {
     setRoomState((prev) => {
       if (!prev) return prev;
@@ -134,7 +154,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 
   return (
     <RoomContext.Provider
-      value={{ room, isHost, setRoom, updateSyncState, updatePlaylist, addMember, removeMember, clear }}
+      value={{ room, isHost, setRoom, updateSyncState, updatePlaylist, updateCurrentTrackIndex, updateLoopMode, addMember, removeMember, clear }}
     >
       {children}
     </RoomContext.Provider>
