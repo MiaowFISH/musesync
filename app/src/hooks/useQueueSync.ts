@@ -8,6 +8,7 @@ import { useRoomStore } from '../stores';
 import { queueService } from '../services/queue/QueueService';
 import { socketManager } from '../services/sync/SocketManager';
 import { audioService } from '../services/audio/AudioService';
+import { musicApi } from '../services/api/MusicApi';
 import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
 import type { QueueUpdatedEvent } from '@shared/types/socket-events';
@@ -16,6 +17,7 @@ interface UseQueueSyncParams {
   roomId: string | undefined;
   userId: string;
   isConnected: boolean;
+  play: (track: Track, audioUrl: string) => Promise<void>;
 }
 
 interface UseQueueSyncResult {
@@ -34,7 +36,7 @@ interface UseQueueSyncResult {
 }
 
 export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
-  const { roomId, userId, isConnected } = params;
+  const { roomId, userId, isConnected, play } = params;
   const roomStore = useRoomStore();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [isQueueLoading, setIsQueueLoading] = useState(false);
@@ -45,6 +47,25 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
   const playlist = roomStore.room?.playlist || [];
   const currentTrackIndex = roomStore.room?.currentTrackIndex ?? -1;
   const loopMode = roomStore.room?.loopMode || 'none';
+
+  /**
+   * Fetch audio URL and play a track (used by the advance initiator)
+   */
+  const fetchAndPlay = useCallback(async (track: Track) => {
+    try {
+      console.log('[useQueueSync] Fetching audio for:', track.title);
+      const audioResponse = await musicApi.getAudioUrl(track.trackId, { quality: 'exhigh' });
+      if (audioResponse.success && audioResponse.data?.audioUrl) {
+        await play(track, audioResponse.data.audioUrl);
+      } else {
+        console.error('[useQueueSync] Failed to get audio URL for:', track.title);
+        toast.error('无法获取音频链接');
+      }
+    } catch (error) {
+      console.error('[useQueueSync] fetchAndPlay error:', error);
+      toast.error('播放失败');
+    }
+  }, [play]);
 
   /**
    * Toast notifications for queue:updated events from other users.
@@ -120,8 +141,14 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
       });
 
       if (result.success) {
-        console.log('[useQueueSync] Auto-advance successful');
-        // The queue:updated event will trigger playback via the listener above
+        console.log('[useQueueSync] Auto-advance successful, index:', result.currentTrackIndex);
+        // Operator plays the new track themselves (sync:state skips own updates)
+        if (result.currentTrackIndex !== undefined && result.currentTrackIndex >= 0 && result.playlist) {
+          const nextTrack = result.playlist[result.currentTrackIndex];
+          if (nextTrack) {
+            await fetchAndPlay(nextTrack);
+          }
+        }
       } else {
         // Check if queue finished (currentTrackIndex === -1)
         if (result.currentTrackIndex === -1) {
@@ -238,10 +265,9 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
 
     try {
       // Use advance to jump to the track
-      // We'll need to call advance multiple times to reach the target index
-      // For now, we'll use a simple approach: advance in the correct direction
       const direction = index > currentIndex ? 'next' : 'previous';
       const steps = Math.abs(index - currentIndex);
+      let lastResult: any = null;
 
       for (let i = 0; i < steps; i++) {
         const result = await queueService.advance({
@@ -254,6 +280,15 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
           toast.error(result.error || '跳转失败');
           break;
         }
+        lastResult = result;
+      }
+
+      // Operator plays the target track themselves
+      if (lastResult?.success && lastResult.currentTrackIndex >= 0 && lastResult.playlist) {
+        const targetTrack = lastResult.playlist[lastResult.currentTrackIndex];
+        if (targetTrack) {
+          await fetchAndPlay(targetTrack);
+        }
       }
     } catch (error) {
       console.error('[useQueueSync] Track press error:', error);
@@ -261,7 +296,7 @@ export function useQueueSync(params: UseQueueSyncParams): UseQueueSyncResult {
     } finally {
       setIsQueueLoading(false);
     }
-  }, [roomId, userId, isConnected, roomStore.room?.currentTrackIndex]);
+  }, [roomId, userId, isConnected, roomStore.room?.currentTrackIndex, fetchAndPlay]);
 
   /**
    * Handle loop mode toggle

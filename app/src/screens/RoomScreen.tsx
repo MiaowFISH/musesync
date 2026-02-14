@@ -189,7 +189,8 @@ export const RoomScreen: React.FC = () => {
             syncState,
           };
           setRoom(updatedRoom);
-          roomStore.setRoom(updatedRoom);
+          // Only update syncState in store, don't overwrite the whole room
+          // (queue:updated listener in RoomProvider manages playlist state)
           roomStore.updateSyncState(syncState);
 
           // Don't sync if this is our own update

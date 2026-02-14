@@ -90,6 +90,7 @@ export default function PlayerScreen() {
     roomId: roomStore.room?.roomId,
     userId: deviceId,
     isConnected: connectionStore.isConnected,
+    play,
   });
 
   // Load device ID on mount
