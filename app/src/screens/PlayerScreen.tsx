@@ -26,7 +26,6 @@ import { toast } from '../components/common/Toast';
 import type { Track } from '@shared/types/entities';
 import { useRoomStore, useConnectionStore } from '../stores';
 import { PlayIcon } from '../components/common/PlayIcon';
-import { QueueBottomSheet } from '../components/queue/QueueBottomSheet';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ALBUM_ART_SIZE = Math.min(SCREEN_WIDTH - 64, 320);
@@ -76,17 +75,9 @@ export default function PlayerScreen() {
     isLoading: isPlayerLoading,
   } = usePlayer();
 
-  const {
-    playlist,
-    currentTrackIndex,
-    loopMode,
-    isQueueLoading,
-    handleRemove,
-    handleReorder,
-    handleTrackPress,
-    handleLoopModeToggle,
-    handleAddSong,
-  } = useQueueSync({
+  // Keep useQueueSync active for auto-advance and toast notifications
+  // (must stay mounted while PlayerScreen is active)
+  useQueueSync({
     roomId: roomStore.room?.roomId,
     userId: deviceId,
     isConnected: connectionStore.isConnected,
@@ -932,20 +923,17 @@ export default function PlayerScreen() {
         </Text>
       )}
 
-      {/* Queue Bottom Sheet */}
+      {/* Queue button */}
       {roomStore.room && (
-        <QueueBottomSheet
-          playlist={playlist}
-          currentTrackIndex={currentTrackIndex}
-          loopMode={loopMode}
-          isLoading={isQueueLoading}
-          isConnected={connectionStore.isConnected}
-          onAddSong={handleAddSong}
-          onRemove={handleRemove}
-          onReorder={handleReorder}
-          onTrackPress={handleTrackPress}
-          onLoopModeToggle={handleLoopModeToggle}
-        />
+        <TouchableOpacity
+          style={[styles.queueButton, { backgroundColor: theme.colors.surface }]}
+          onPress={() => navigation.navigate('Queue')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.queueButtonText, { color: theme.colors.text }]}>
+            ♪ 播放队列
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -956,7 +944,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 32,
     paddingTop: 16,
-    paddingBottom: 100,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
@@ -1172,5 +1160,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     paddingHorizontal: 32,
+  },
+  queueButton: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: 'center',
+  },
+  queueButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

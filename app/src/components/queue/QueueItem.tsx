@@ -1,5 +1,5 @@
 // app/src/components/queue/QueueItem.tsx
-// Individual queue item with platform-adaptive interactions
+// Individual queue item with unified styling across platforms
 
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform } from 'react-native';
@@ -14,8 +14,9 @@ interface QueueItemProps {
   index: number;
   isCurrentTrack: boolean;
   isActive: boolean;
-  isFirst: boolean;
-  isLast: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  canDelete: boolean;
   onDelete: (trackId: string, queueId: string) => void;
   onPress: (track: Track, index: number) => void;
   onMoveUp?: (index: number) => void;
@@ -35,8 +36,9 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
   index,
   isCurrentTrack,
   isActive,
-  isFirst,
-  isLast,
+  canMoveUp,
+  canMoveDown,
+  canDelete,
   onDelete,
   onPress,
   onMoveUp,
@@ -70,37 +72,42 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
       onPress={() => onPress(track, index)}
       activeOpacity={0.7}
     >
-      {/* Drag handle (native) or reorder buttons (web) */}
-      {isWeb ? (
-        <View style={styles.webActions}>
+      {/* Reorder controls */}
+      <View style={styles.reorderControls}>
+        {isWeb ? (
+          // Web: up/down buttons
+          <>
+            <TouchableOpacity
+              onPress={() => canMoveUp && onMoveUp?.(index)}
+              disabled={!canMoveUp}
+              activeOpacity={0.6}
+              style={styles.reorderBtn}
+            >
+              <Text style={{ fontSize: 12, color: canMoveUp ? theme.colors.textSecondary : theme.colors.border }}>▲</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => canMoveDown && onMoveDown?.(index)}
+              disabled={!canMoveDown}
+              activeOpacity={0.6}
+              style={styles.reorderBtn}
+            >
+              <Text style={{ fontSize: 12, color: canMoveDown ? theme.colors.textSecondary : theme.colors.border }}>▼</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          // Native: drag handle
           <TouchableOpacity
-            style={[styles.webActionBtn, isFirst && styles.webActionBtnDisabled]}
-            onPress={() => !isFirst && onMoveUp?.(index)}
-            disabled={isFirst}
+            onLongPress={drag}
+            delayLongPress={100}
             activeOpacity={0.6}
+            style={styles.reorderBtn}
           >
-            <Text style={[styles.webActionText, { color: isFirst ? theme.colors.border : theme.colors.textSecondary }]}>▲</Text>
+            <Text style={[styles.dragIcon, { color: theme.colors.textSecondary }]}>≡</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.webActionBtn, isLast && styles.webActionBtnDisabled]}
-            onPress={() => !isLast && onMoveDown?.(index)}
-            disabled={isLast}
-            activeOpacity={0.6}
-          >
-            <Text style={[styles.webActionText, { color: isLast ? theme.colors.border : theme.colors.textSecondary }]}>▼</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={styles.dragHandle}
-          onLongPress={drag}
-          delayLongPress={100}
-          activeOpacity={0.6}
-        >
-          <Text style={[styles.dragIcon, { color: theme.colors.textSecondary }]}>≡</Text>
-        </TouchableOpacity>
-      )}
+        )}
+      </View>
 
+      {/* Cover art */}
       {track.coverUrl ? (
         <Image
           source={{ uri: track.coverUrl }}
@@ -112,54 +119,44 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
         </View>
       )}
 
+      {/* Track info */}
       <View style={styles.info}>
-        <Text
-          style={[styles.title, { color: theme.colors.text }]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
           {track.title}
         </Text>
-        <Text
-          style={[styles.artist, { color: theme.colors.textSecondary }]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.artist, { color: theme.colors.textSecondary }]} numberOfLines={1}>
           {track.artist}
         </Text>
       </View>
 
-      <View style={styles.metadata}>
-        <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
-          {formatDuration(track.duration)}
-        </Text>
-        {track.addedByUsername && (
-          <Text style={[styles.addedBy, { color: theme.colors.textSecondary }]}>
-            {track.addedByUsername}
-          </Text>
-        )}
-      </View>
+      {/* Duration */}
+      <Text style={[styles.duration, { color: theme.colors.textSecondary }]}>
+        {formatDuration(track.duration)}
+      </Text>
 
-      {/* Web: inline delete button */}
-      {isWeb && (
+      {/* Delete button — always visible, unified style */}
+      {canDelete && (
         <TouchableOpacity
-          style={[styles.webDeleteBtn, { backgroundColor: theme.colors.error }]}
+          style={styles.deleteBtn}
           onPress={() => onDelete(track.trackId, track.queueId || track.trackId)}
-          activeOpacity={0.8}
+          activeOpacity={0.6}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.webDeleteText}>✕</Text>
+          <Text style={[styles.deleteBtnText, { color: theme.colors.textSecondary }]}>✕</Text>
         </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
 
-  // Native: wrap with Swipeable for swipe-to-delete
-  if (!isWeb) {
+  // Native: also wrap with Swipeable for swipe-to-delete
+  if (!isWeb && canDelete) {
     const renderRightActions = () => (
       <TouchableOpacity
-        style={[styles.deleteButton, { backgroundColor: theme.colors.error }]}
+        style={[styles.swipeDelete, { backgroundColor: theme.colors.error }]}
         onPress={() => onDelete(track.trackId, track.queueId || track.trackId)}
         activeOpacity={0.8}
       >
-        <Text style={[styles.deleteText, { color: '#FFFFFF' }]}>删除</Text>
+        <Text style={styles.swipeDeleteText}>删除</Text>
       </TouchableOpacity>
     );
 
@@ -179,46 +176,24 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
-  dragHandle: {
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    marginRight: 4,
+  reorderControls: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  reorderBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    alignItems: 'center',
   },
   dragIcon: {
     fontSize: 20,
-    fontWeight: '600',
-  },
-  webActions: {
-    flexDirection: 'column',
-    marginRight: 4,
-    gap: 2,
-  },
-  webActionBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  webActionBtnDisabled: {
-    opacity: 0.3,
-  },
-  webActionText: {
-    fontSize: 10,
-  },
-  webDeleteBtn: {
-    marginLeft: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  webDeleteText: {
-    color: '#FFFFFF',
-    fontSize: 12,
     fontWeight: '600',
   },
   cover: {
@@ -245,24 +220,25 @@ const styles = StyleSheet.create({
   artist: {
     fontSize: 12,
   },
-  metadata: {
-    alignItems: 'flex-end',
-    marginLeft: 8,
-  },
   duration: {
     fontSize: 12,
-    marginBottom: 2,
+    marginLeft: 8,
   },
-  addedBy: {
-    fontSize: 10,
+  deleteBtn: {
+    marginLeft: 8,
+    padding: 6,
   },
-  deleteButton: {
+  deleteBtnText: {
+    fontSize: 14,
+  },
+  swipeDelete: {
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
     height: '100%',
   },
-  deleteText: {
+  swipeDeleteText: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },

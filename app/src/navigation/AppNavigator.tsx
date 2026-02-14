@@ -11,6 +11,7 @@ import type { Track, Room } from '@shared/types/entities';
 import { HomeScreen } from '../screens/HomeScreen';
 import { RoomScreen } from '../screens/RoomScreen';
 import PlayerScreen from '../screens/PlayerScreen';
+import QueueScreen from '../screens/QueueScreen';
 import SearchScreen from '../screens/SearchScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   Home: undefined;
   Room: { roomId: string; room?: Room; userId?: string };
   Player: { trackId: string; track?: Track };
+  Queue: undefined;
   Search: undefined;
   History: undefined;
   Settings: undefined;
@@ -51,6 +53,7 @@ export const AppNavigator: React.FC = () => {
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Room" component={RoomScreen} />
           <Stack.Screen name="Player" component={PlayerScreen} />
+          <Stack.Screen name="Queue" component={QueueScreen} />
           <Stack.Screen name="Search" component={SearchScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
