@@ -86,6 +86,7 @@ export class RoomManager {
         currentTrackIndex: -1,
         syncState: initialSyncState,
         controlMode: 'host-only', // Default to host-only for better sync control
+        loopMode: 'none', // Default to no loop
         createdAt: Date.now(),
         lastActivityAt: Date.now(),
       };

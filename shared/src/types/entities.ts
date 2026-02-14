@@ -13,6 +13,7 @@ export interface Room {
   currentTrackIndex: number;
   syncState: SyncState;
   controlMode: 'open' | 'host-only' | 'queue';
+  loopMode: LoopMode; // queue loop mode
   createdAt: number;
   lastActivityAt: number;
 }
@@ -33,6 +34,19 @@ export interface Track {
   addedBy?: string; // userId of who added the track
   addedAt: number;
 }
+
+/**
+ * QueueItem entity - extends Track with queue-specific metadata
+ */
+export interface QueueItem extends Track {
+  queueId: string; // unique ID for each queue entry (allows same track to be re-added)
+  addedByUsername: string; // display name of who added it (for UI display)
+}
+
+/**
+ * Loop mode for queue playback
+ */
+export type LoopMode = 'none' | 'queue';
 
 /**
  * SyncState entity - real-time playback synchronization state

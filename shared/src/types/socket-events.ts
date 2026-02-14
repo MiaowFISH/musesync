@@ -29,10 +29,14 @@ export interface SocketEvents {
   "sync:previous": (data: SyncPreviousRequest) => void;
   "sync:state": (data: SyncStateEvent) => void;
   "sync:heartbeat": (data: SyncHeartbeatEvent) => void;
-  "sync:playlist_add": (data: PlaylistAddRequest) => void;
-  "sync:playlist_remove": (data: PlaylistRemoveRequest) => void;
-  "sync:playlist_reorder": (data: PlaylistReorderRequest) => void;
-  "sync:playlist_updated": (data: PlaylistUpdatedEvent) => void;
+
+  // Queue management
+  "queue:add": (data: QueueAddRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:remove": (data: QueueRemoveRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:reorder": (data: QueueReorderRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:advance": (data: QueueAdvanceRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:loop_mode": (data: QueueLoopModeRequest, callback: (response: QueueOperationResponse) => void) => void;
+  "queue:updated": (data: QueueUpdatedEvent) => void;
 
   // Time sync
   "time:sync_request": (data: TimeSyncRequest) => void;
@@ -123,23 +127,45 @@ export interface SyncPreviousRequest {
   userId: string;
 }
 
-export interface PlaylistAddRequest {
+export interface QueueAddRequest {
   roomId: string;
   userId: string;
+  username: string;
   track: Track;
 }
 
-export interface PlaylistRemoveRequest {
+export interface QueueRemoveRequest {
   roomId: string;
   userId: string;
   trackId: string;
+  queueId: string; // unique queue entry ID
 }
 
-export interface PlaylistReorderRequest {
+export interface QueueReorderRequest {
   roomId: string;
   userId: string;
   fromIndex: number;
   toIndex: number;
+}
+
+export interface QueueAdvanceRequest {
+  roomId: string;
+  userId: string;
+  direction: 'next' | 'previous';
+}
+
+export interface QueueLoopModeRequest {
+  roomId: string;
+  userId: string;
+  loopMode: 'none' | 'queue';
+}
+
+export interface QueueOperationResponse {
+  success: boolean;
+  playlist?: Track[];
+  currentTrackIndex?: number;
+  loopMode?: 'none' | 'queue';
+  error?: string;
 }
 
 export interface TimeSyncRequest {
@@ -208,11 +234,15 @@ export interface SyncHeartbeatEvent {
   clientTime: number; // Sender's local time when heartbeat was sent
 }
 
-export interface PlaylistUpdatedEvent {
+export interface QueueUpdatedEvent {
   roomId: string;
   playlist: Track[];
   currentTrackIndex: number;
-  updatedBy: string;
+  currentTrack: Track | null;
+  operation: 'add' | 'remove' | 'reorder' | 'advance' | 'loop_mode';
+  operatorName: string; // username for toast display
+  trackTitle?: string; // for toast: "XX added [trackTitle]"
+  loopMode?: 'none' | 'queue';
 }
 
 export interface TimeSyncResponse {
@@ -284,4 +314,15 @@ export function isSyncPlayRequest(data: unknown): data is SyncPlayRequest {
 export function isTimeSyncRequest(data: unknown): data is TimeSyncRequest {
   const d = data as TimeSyncRequest;
   return typeof d?.t0 === "number";
+}
+
+export function isQueueAddRequest(data: unknown): data is QueueAddRequest {
+  const d = data as QueueAddRequest;
+  return (
+    typeof d?.roomId === "string" &&
+    typeof d?.userId === "string" &&
+    typeof d?.username === "string" &&
+    typeof d?.track === "object" &&
+    typeof d?.track?.trackId === "string"
+  );
 }
