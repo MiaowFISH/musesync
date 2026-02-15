@@ -28,20 +28,21 @@ export function registerSyncHandlers(socket: Socket) {
         return;
       }
 
-      // Only host should send heartbeats
-      if (data.fromUserId !== room.hostId) {
-        console.warn(`[SyncHandlers] Heartbeat from non-host ${data.fromUserId} rejected`);
+      // Verify sender is a room member
+      const isMember = room.members.some((m) => m.userId === data.fromUserId);
+      if (!isMember) {
+        console.warn(`[SyncHandlers] Heartbeat from non-member ${data.fromUserId} rejected`);
         return;
       }
 
-      // Update member activity and reset heartbeat timer
+      // Update member activity and reset heartbeat timer for ALL members
       syncEngine.updateMemberActivity(data.roomId, data.fromUserId);
       syncEngine.resetHeartbeat(data.roomId, data.fromUserId);
 
-      console.log(`[SyncHandlers] Broadcasting heartbeat from host ${data.fromUserId} in room ${data.roomId}`);
-
-      // Broadcast to all other room members (exclude sender)
-      socket.to(data.roomId).emit('sync:heartbeat', data);
+      // Only broadcast host heartbeats (they contain sync state)
+      if (data.fromUserId === room.hostId && data.syncState) {
+        socket.to(data.roomId).emit('sync:heartbeat', data);
+      }
     } catch (error) {
       console.error('[SyncHandlers] Error in sync:heartbeat:', error);
     }

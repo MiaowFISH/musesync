@@ -70,6 +70,9 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       if (response.success && response.room) {
         const { roomId } = response.room;
 
+        // Cancel any pending empty room deletion or host transfer
+        roomManager.cleanupRoomTimers(roomId);
+
         // Join Socket.io room
         socket.join(roomId);
 
@@ -157,11 +160,9 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       // Stop heartbeat
       syncEngine.stopHeartbeat(`${request.roomId}:${request.userId}`);
 
-      if (result.deleted) {
-        // Room deleted, cleanup
-        syncEngine.cleanupRoom(request.roomId);
-        console.log(`[RoomHandlers] Room ${request.roomId} deleted (no members)`);
-      } else {
+      // Note: Room is no longer immediately deleted when empty
+      // It will be deleted after EMPTY_ROOM_TIMEOUT_MS if no one rejoins
+      if (!result.deleted) {
         // Get updated room
         const updatedRoom = roomManager.getRoom(request.roomId);
 
@@ -173,7 +174,7 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
         });
 
         if (result.newHostId) {
-          console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}, host transferred to ${result.newHostId}`);
+          console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}, host transfer scheduled`);
         } else {
           console.log(`[RoomHandlers] ${request.userId} left room ${request.roomId}`);
         }
@@ -203,6 +204,10 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       if (!member) {
         // User was removed (passive disconnect) — re-join the room
         console.log(`[RoomHandlers] ${request.userId} not a member, falling back to join`);
+
+        // Cancel any pending timers before re-joining (e.g., host transfer if original host is back)
+        roomManager.cleanupRoomTimers(request.roomId);
+
         const joinResponse = roomManager.joinRoom(request);
         if (!joinResponse.success || !joinResponse.room) {
           callback({ success: false, error: joinResponse.error || 'Failed to rejoin room' });
@@ -234,6 +239,10 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       // Only update socket mapping and re-join the Socket.IO room.
       // Do NOT send state_snapshot (client already has correct playback state).
       // Do NOT broadcast member:joined (user never left from other members' perspective).
+
+      // Cancel any pending timers (empty room deletion, host transfer)
+      roomManager.cleanupRoomTimers(request.roomId);
+
       roomManager.handleReconnection(request.clientId, socket.id, request.userId, request.roomId, io);
 
       socket.join(request.roomId);
@@ -320,10 +329,9 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
     // Remove connection tracking
     roomManager.removeConnection(clientId);
 
-    if (result.deleted) {
-      syncEngine.cleanupRoom(roomId);
-      console.log(`[RoomHandlers] Room ${roomId} deleted (no members)`);
-    } else {
+    // Note: Room is no longer immediately deleted when empty
+    // It will be deleted after EMPTY_ROOM_TIMEOUT_MS if no one rejoins
+    if (!result.deleted) {
       const updatedRoom = roomManager.getRoom(roomId);
 
       socket.to(roomId).emit('member:left', {
@@ -333,7 +341,7 @@ export function registerRoomHandlers(socket: Socket, io: SocketIOServer) {
       });
 
       if (result.newHostId) {
-        console.log(`[RoomHandlers] ${userId} disconnected from room ${roomId}, host transferred to ${result.newHostId}`);
+        console.log(`[RoomHandlers] ${userId} disconnected from room ${roomId}, host transfer scheduled`);
       } else {
         console.log(`[RoomHandlers] ${userId} disconnected from room ${roomId}`);
       }

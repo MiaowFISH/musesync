@@ -1,7 +1,13 @@
 {
-  "extends": ["expo/tsconfig.base", "../tsconfig.base.json"],
+  "extends": [
+    "expo/tsconfig.base",
+    "../tsconfig.base.json"
+  ],
   "compilerOptions": {
     "baseUrl": ".",
+    "lib": [
+      "DOM"
+    ],
     "paths": {
       "@shared/*": [
         "../shared/src/*"

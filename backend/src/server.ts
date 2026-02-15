@@ -16,6 +16,7 @@ import { registerQueueHandlers } from './handlers/queueHandlers';
 
 // Import services
 import { syncEngine } from './services/sync/SyncEngine';
+import { roomManager } from './services/room/RoomManager';
 
 // Import types
 import type { SocketEvents } from '@shared/types/socket-events';
@@ -68,6 +69,9 @@ const io = new SocketIOServer<SocketEvents>(httpServer, {
 
 // Initialize sync engine with Socket.io instance
 syncEngine.initialize(io);
+
+// Initialize room manager with Socket.io instance
+roomManager.setIoServer(io);
 
 // Register Socket.io event handlers
 io.on('connection', (socket) => {

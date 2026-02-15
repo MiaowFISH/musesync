@@ -118,6 +118,16 @@ export const RoomScreen: React.FC = () => {
       }
     });
 
+    // Listen to SocketManager error events (e.g., room not found during rejoin)
+    const unsubscribeError = socketManager.onError((error) => {
+      console.error('[RoomScreen] SocketManager error:', error);
+      if (error.code === 'ROOM_NOT_FOUND' || error.message?.includes('not found')) {
+        toast.error('房间已失效，请重新创建');
+        roomStore.clear();
+        navigation.navigate('Home');
+      }
+    });
+
     // Listen to room events
     const socket = socketManager.getSocket();
     if (socket) {
@@ -425,6 +435,7 @@ export const RoomScreen: React.FC = () => {
 
     return () => {
       unsubscribe();
+      unsubscribeError();
       if (socket) {
         socket.off('member:joined');
         socket.off('member:left');

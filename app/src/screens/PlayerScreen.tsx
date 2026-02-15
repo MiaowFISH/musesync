@@ -57,7 +57,6 @@ export default function PlayerScreen() {
   const [showTranslation, setShowTranslation] = useState(false); // Show translation toggle
   const lyricsScrollRef = useRef<ScrollView>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const versionRef = useRef<number>(0); // Track latest version for sync operations
   
   const {
@@ -405,65 +404,8 @@ export default function PlayerScreen() {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-      }
     };
   }, []);
-
-  /**
-   * Heartbeat mechanism: Host sends periodic updates to keep room in sync
-   */
-  useEffect(() => {
-    // Clear existing interval
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-      heartbeatIntervalRef.current = null; // Prevent duplicate intervals
-    }
-
-    // Only send heartbeats if:
-    // 1. In a room
-    // 2. Is room host
-    // 3. Currently playing
-    // 4. Has valid track
-    const isHost = roomStore.room?.hostId === deviceId;
-    if (!roomStore.room || !isHost || !isPlaying || !track) {
-      return;
-    }
-
-    console.log('[PlayerScreen] Starting heartbeat mechanism as host');
-
-    // Send heartbeat every 3 seconds
-    heartbeatIntervalRef.current = setInterval(() => {
-      if (!roomStore.room || !track || !deviceId) return;
-
-      const heartbeat = {
-        roomId: roomStore.room.roomId,
-        fromUserId: deviceId,
-        syncState: {
-          trackId: track.trackId,
-          status: isPlaying ? ('playing' as const) : ('paused' as const),
-          seekTime: position,
-          serverTimestamp: Date.now(),
-          playbackRate: 1.0,
-          volume: volume,
-          updatedBy: deviceId,
-          version: versionRef.current,
-        },
-        clientTime: Date.now(),
-      };
-
-      // Emit heartbeat via socket
-      syncService.emit('sync:heartbeat', heartbeat);
-    }, 3000); // 3 seconds interval
-
-    // Cleanup on unmount or when dependencies change
-    return () => {
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current);
-      }
-    };
-  }, [roomStore.room, deviceId, isPlaying, track, position, volume]);
 
   /**
    * Load and parse lyrics

@@ -1,7 +1,7 @@
 // app/src/components/common/NetworkBanner.tsx
 // Network disconnection banner with auto-reconnection feedback
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { socketManager } from '../../services/sync/SocketManager';
@@ -11,6 +11,7 @@ export function NetworkBanner() {
   const { showBanner, isOffline, isReconnecting, isConnectionError, reconnectInfo } = useNetworkStatus();
   const theme = useTheme();
   const slideAnim = useRef(new Animated.Value(-100)).current;
+  const [countdown, setCountdown] = useState(Math.ceil(reconnectInfo.nextRetryMs / 1000));
 
   // Animate banner in/out
   useEffect(() => {
@@ -30,6 +31,24 @@ export function NetworkBanner() {
     }
   }, [showBanner, slideAnim]);
 
+  // Update countdown timer in real-time
+  useEffect(() => {
+    if (!isReconnecting) {
+      setCountdown(Math.ceil(reconnectInfo.nextRetryMs / 1000));
+      return;
+    }
+
+    // Initialize countdown from reconnectInfo
+    setCountdown(Math.ceil(reconnectInfo.nextRetryMs / 1000));
+
+    // Decrement countdown every second
+    const timer = setInterval(() => {
+      setCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isReconnecting, reconnectInfo.nextRetryMs]);
+
   if (!showBanner) {
     return null;
   }
@@ -45,8 +64,7 @@ export function NetworkBanner() {
     bannerText = '网络已断开，正在重连...';
     backgroundColor = '#F44336'; // Red
   } else if (isReconnecting) {
-    const nextRetrySec = Math.ceil(reconnectInfo.nextRetryMs / 1000);
-    bannerText = `正在重连 (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})，${nextRetrySec}s 后重试`;
+    bannerText = `正在重连 (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})，${countdown}s 后重试`;
     backgroundColor = '#FF9800'; // Orange/Yellow
   }
 

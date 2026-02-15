@@ -28,8 +28,21 @@ interface ClientConnection {
 export class RoomManager {
   private clientConnections: Map<string, ClientConnection> = new Map();
   private pendingReconnections: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private emptyRoomTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private hostTransferTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private io: any = null; // Socket.IO server instance for emitting events
   private readonly GRACE_PERIOD_MS = 2500;
   private readonly BATCH_RECONNECT_WINDOW_MS = 3000;
+  private readonly EMPTY_ROOM_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly HOST_TRANSFER_DELAY_MS = 30 * 1000; // 30 seconds
+
+  /**
+   * Set Socket.IO server instance (called during initialization)
+   */
+  setIoServer(io: any): void {
+    this.io = io;
+  }
+
   /**
    * Create a new room
    */
@@ -214,25 +227,112 @@ export class RoomManager {
     // Remove user from members
     room.members = room.members.filter((m) => m.userId !== userId);
 
-    // If no members left, delete room
+    // If no members left, schedule room deletion after grace period
     if (room.members.length === 0) {
-      roomStore.deleteRoom(roomId);
-      console.log(`[RoomManager] Room ${roomId} deleted (no members)`);
-      return { deleted: true };
+      console.log(`[RoomManager] Room ${roomId} is now empty, scheduling deletion in ${this.EMPTY_ROOM_TIMEOUT_MS / 1000}s`);
+
+      // Clear any existing timer
+      const existingTimer = this.emptyRoomTimers.get(roomId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      // Schedule deletion
+      const timer = setTimeout(() => {
+        const currentRoom = roomStore.getRoom(roomId);
+        if (currentRoom && currentRoom.members.length === 0) {
+          roomStore.deleteRoom(roomId);
+          console.log(`[RoomManager] Room ${roomId} deleted after grace period (no members)`);
+        }
+        this.emptyRoomTimers.delete(roomId);
+      }, this.EMPTY_ROOM_TIMEOUT_MS);
+
+      this.emptyRoomTimers.set(roomId, timer);
+
+      room.lastActivityAt = Date.now();
+      roomStore.updateRoom(roomId, room);
+      return { deleted: false }; // Not deleted yet, grace period active
     }
 
-    // If host left, assign new host
+    // Cancel empty room timer if someone rejoined
+    const emptyTimer = this.emptyRoomTimers.get(roomId);
+    if (emptyTimer) {
+      clearTimeout(emptyTimer);
+      this.emptyRoomTimers.delete(roomId);
+      console.log(`[RoomManager] Cancelled empty room timer for ${roomId} (members rejoined)`);
+    }
+
+    // If host left, schedule host transfer after delay
     let newHostId: string | undefined;
     if (room.hostId === userId) {
-      newHostId = room.members[0].userId;
-      room.hostId = newHostId;
-      console.log(`[RoomManager] Host transferred to ${newHostId} in room ${roomId}`);
+      console.log(`[RoomManager] Host ${userId} left room ${roomId}, scheduling transfer in ${this.HOST_TRANSFER_DELAY_MS / 1000}s`);
+
+      // Clear any existing host transfer timer
+      const existingTimer = this.hostTransferTimers.get(roomId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      // Schedule host transfer
+      const timer = setTimeout(() => {
+        const currentRoom = roomStore.getRoom(roomId);
+        if (currentRoom && currentRoom.hostId === userId && currentRoom.members.length > 0) {
+          const oldHostId = userId;
+          newHostId = currentRoom.members[0].userId;
+          currentRoom.hostId = newHostId;
+          console.log(`[RoomManager] Host transferred to ${newHostId} in room ${roomId} after delay`);
+          roomStore.updateRoom(roomId, currentRoom);
+
+          // Emit host transfer event to room members
+          // Store io reference for timer callback
+          if (this.io) {
+            this.io.to(roomId).emit('room:host_transferred', {
+              roomId,
+              oldHostId,
+              newHostId,
+              room: currentRoom,
+            });
+          }
+        }
+        this.hostTransferTimers.delete(roomId);
+      }, this.HOST_TRANSFER_DELAY_MS);
+
+      this.hostTransferTimers.set(roomId, timer);
     }
 
     room.lastActivityAt = Date.now();
     roomStore.updateRoom(roomId, room);
 
     return { newHostId, deleted: false };
+  }
+
+  /**
+   * Cancel host transfer timer (called when original host rejoins)
+   */
+  cancelHostTransfer(roomId: string): void {
+    const timer = this.hostTransferTimers.get(roomId);
+    if (timer) {
+      clearTimeout(timer);
+      this.hostTransferTimers.delete(roomId);
+      console.log(`[RoomManager] Cancelled host transfer timer for ${roomId}`);
+    }
+  }
+
+  /**
+   * Cleanup timers for a room
+   */
+  cleanupRoomTimers(roomId: string): void {
+    const emptyTimer = this.emptyRoomTimers.get(roomId);
+    if (emptyTimer) {
+      clearTimeout(emptyTimer);
+      this.emptyRoomTimers.delete(roomId);
+    }
+
+    const hostTimer = this.hostTransferTimers.get(roomId);
+    if (hostTimer) {
+      clearTimeout(hostTimer);
+      this.hostTransferTimers.delete(roomId);
+    }
   }
 
   /**

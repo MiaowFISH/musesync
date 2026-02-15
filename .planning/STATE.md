@@ -73,6 +73,12 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Dynamic require() for appLifecycleManager in event handlers to avoid circular dependency
 - [Phase 03-02]: Lock screen skip controls wired through AudioService facade with setOnRemoteNext/Previous methods
 - [Phase 03-02]: Background sync suppression checks isBackgrounded() before processing queue:updated events
+- [Hotfix]: Heartbeat moved from PlayerScreen to SocketManager singleton — screen-independent, 20s interval
+- [Hotfix]: Server accepts heartbeat from all room members, not just host
+- [Hotfix]: Rejoin logic unified in SocketManager.attemptRejoin(), triggered on any `connect` event with room context
+- [Hotfix]: Room not found during rejoin navigates back to home instead of stuck reconnect
+- [Hotfix]: Empty room deletion delayed 5 min; host transfer delayed 30s with cancellation on rejoin
+- [Hotfix]: RoomManager emits room:host_transferred via io reference when timer fires
 
 ### Pending Todos
 
@@ -91,5 +97,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-15 (Phase 3 in progress)
-Stopped at: Completed 03-02-PLAN.md — Background playback independence & foreground reconciliation complete
+Stopped at: Hotfix — heartbeat/reconnect/room lifecycle bugs fixed across 9 files
 Resume file: None

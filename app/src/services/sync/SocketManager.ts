@@ -30,6 +30,7 @@ export class SocketManager {
   private connectionState: ConnectionState = 'disconnected';
   private stateListeners: Set<(state: ConnectionState) => void> = new Set();
   private reconnectInfoListeners: Set<(info: ReconnectInfo) => void> = new Set();
+  private errorListeners: Set<(error: { message: string; code?: string }) => void> = new Set();
   private reconnectCount = 0;
   private maxReconnectAttempts = 10;
   private baseReconnectDelay = 1000;
@@ -39,6 +40,8 @@ export class SocketManager {
   private currentUserId: string | null = null;
   private currentUsername: string = '';
   private currentDeviceId: string = '';
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly HEARTBEAT_INTERVAL = 20000; // 20s — well within server's 60s timeout
 
   constructor(serverUrl: string = 'http://localhost:3000') {
     this.serverUrl = serverUrl;
@@ -60,6 +63,20 @@ export class SocketManager {
     
     // Update server URL
     this.serverUrl = newUrl;
+  }
+
+  /**
+   * Subscribe to error events
+   */
+  onError(listener: (error: { message: string; code?: string }) => void): () => void {
+    this.errorListeners.add(listener);
+    return () => { this.errorListeners.delete(listener); };
+  }
+
+  private notifyError(error: { message: string; code?: string }): void {
+    this.errorListeners.forEach((listener) => {
+      try { listener(error); } catch (e) { /* ignore */ }
+    });
   }
 
   /**
@@ -110,12 +127,14 @@ export class SocketManager {
     this.currentUserId = userId;
     if (username) this.currentUsername = username;
     if (deviceId) this.currentDeviceId = deviceId;
+    this.startHeartbeat();
   }
 
   /**
    * Clear room context (called on explicit leave)
    */
   clearCurrentRoom(): void {
+    this.stopHeartbeat();
     this.currentRoomId = null;
     this.currentUserId = null;
     this.currentUsername = '';
@@ -212,14 +231,20 @@ export class SocketManager {
     this.socket.on('connect', () => {
       console.log(`[SocketManager] Connected with ID: ${this.socket?.id}`);
       this.reconnectCount = 0;
-      this.setConnectionState('connected');
+      // If we have room context, this is a reconnection — rejoin the room
+      if (this.currentRoomId && this.currentUserId && this.clientId) {
+        this.attemptRejoin();
+      } else {
+        this.setConnectionState('connected');
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
       console.log(`[SocketManager] Disconnected: ${reason}`);
-      // If not intentional disconnect, show reconnecting state
+      this.stopHeartbeat();
       if (reason !== 'io client disconnect') {
         this.setConnectionState('reconnecting');
+        // socket.io auto-reconnect handles retries when reconnection: true
       } else {
         this.setConnectionState('disconnected');
       }
@@ -239,55 +264,6 @@ export class SocketManager {
       }
     });
 
-    this.socket.on('reconnect', async (attemptNumber) => {
-      console.log(`[SocketManager] Reconnected after ${attemptNumber} attempts`);
-      this.reconnectCount = 0;
-
-      // Auto-rejoin room if we were in one
-      if (this.currentRoomId && this.currentUserId && this.clientId) {
-        this.isReconnecting = true;
-        this.setConnectionState('reconnecting');
-
-        const rejoinTimeout = setTimeout(() => {
-          console.error('[SocketManager] Rejoin timeout');
-          this.isReconnecting = false;
-          this.setConnectionState('error');
-        }, 5000);
-
-        this.socket?.emit('room:rejoin', {
-          roomId: this.currentRoomId,
-          userId: this.currentUserId,
-          clientId: this.clientId,
-          username: this.currentUsername,
-          deviceId: this.currentDeviceId,
-          deviceType: Platform.OS as 'ios' | 'android' | 'web',
-        }, async (response: any) => {
-          clearTimeout(rejoinTimeout);
-          this.isReconnecting = false;
-          if (response?.success) {
-            console.log('[SocketManager] Rejoin successful, triggering reconciliation');
-            this.setConnectionState('connected');
-
-            // Trigger state reconciliation after successful rejoin
-            try {
-              await stateReconciler.reconcile({
-                roomId: this.currentRoomId!,
-                userId: this.currentUserId!,
-                source: 'reconnection',
-              });
-            } catch (error) {
-              console.error('[SocketManager] Post-reconnection reconciliation failed:', error);
-            }
-          } else {
-            console.error('[SocketManager] Rejoin failed:', response?.error);
-            this.setConnectionState('error');
-          }
-        });
-      } else {
-        this.setConnectionState('connected');
-      }
-    });
-
     this.socket.on('reconnect_error', (error) => {
       console.error('[SocketManager] Reconnection error:', error);
     });
@@ -300,6 +276,96 @@ export class SocketManager {
     this.socket.on('error', (error) => {
       console.error('[SocketManager] Socket error:', error);
     });
+  }
+
+  /**
+   * Attempt to rejoin the current room after reconnection
+   */
+  private async attemptRejoin(): Promise<void> {
+    if (!this.currentRoomId || !this.currentUserId || !this.clientId) {
+      this.setConnectionState('connected');
+      return;
+    }
+
+    this.isReconnecting = true;
+    this.setConnectionState('reconnecting');
+
+    const rejoinTimeout = setTimeout(() => {
+      console.error('[SocketManager] Rejoin timeout');
+      this.isReconnecting = false;
+      this.setConnectionState('error');
+    }, 5000);
+
+    this.socket?.emit('room:rejoin', {
+      roomId: this.currentRoomId,
+      userId: this.currentUserId,
+      clientId: this.clientId,
+      username: this.currentUsername,
+      deviceId: this.currentDeviceId,
+      deviceType: Platform.OS as 'ios' | 'android' | 'web',
+    }, async (response: any) => {
+      clearTimeout(rejoinTimeout);
+      this.isReconnecting = false;
+      if (response?.success) {
+        console.log('[SocketManager] Rejoin successful, triggering reconciliation');
+        this.setConnectionState('connected');
+        this.startHeartbeat();
+
+        try {
+          await stateReconciler.reconcile({
+            roomId: this.currentRoomId!,
+            userId: this.currentUserId!,
+            source: 'reconnection',
+          });
+        } catch (error) {
+          console.error('[SocketManager] Post-reconnection reconciliation failed:', error);
+        }
+      } else {
+        console.error('[SocketManager] Rejoin failed:', response?.error);
+        this.setConnectionState('error');
+
+        // If room not found, notify error listeners
+        if (response?.error?.includes('not found') || response?.error?.includes('Room not found')) {
+          console.log('[SocketManager] Room not found, notifying error listeners');
+          this.notifyError({
+            message: 'Room not found',
+            code: 'ROOM_NOT_FOUND'
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Start client heartbeat — sends keepalive to server every HEARTBEAT_INTERVAL ms.
+   * Runs as long as we're in a room, regardless of which screen is active.
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    if (!this.currentRoomId || !this.currentUserId) return;
+
+    console.log(`[SocketManager] Starting heartbeat for ${this.currentUserId} in room ${this.currentRoomId}`);
+
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.socket?.connected || !this.currentRoomId || !this.currentUserId) return;
+
+      this.socket.emit('sync:heartbeat', {
+        roomId: this.currentRoomId,
+        fromUserId: this.currentUserId,
+        syncState: null,
+        clientTime: Date.now(),
+      });
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  /**
+   * Stop client heartbeat
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   /**
